@@ -32,7 +32,25 @@ async function main() {
   const provider = createProvider();
 
   const app = express();
-  app.use(cors());
+  const allowedOrigins = new Set(
+    [
+      "http://localhost:3000",
+      process.env.WEB_ORIGIN ? process.env.WEB_ORIGIN.trim() : null
+    ].filter((value): value is string => Boolean(value))
+  );
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.has(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error("Not allowed by CORS"));
+      },
+      methods: ["POST"],
+      allowedHeaders: ["Content-Type"]
+    })
+  );
   app.use(express.json({ limit: "1mb" }));
 
   app.post("/ask", async (req, res) => {

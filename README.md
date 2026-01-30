@@ -58,6 +58,29 @@ OPENAI_MODEL=gpt-4o-mini
 PORT=4000
 ```
 
+## Deploy to SAP BTP Cloud Foundry
+```bash
+cf login -a https://api.cf.<region>.hana.ondemand.com
+cf target -o <org> -s <space>
+```
+
+Deploy API:
+```bash
+cd apps/api
+cf push
+cf app fiori-assistant-api
+```
+
+Copy the route from `cf app` into `apps/web/manifest.yml` as `NEXT_PUBLIC_API_BASE_URL`.
+
+Deploy web:
+```bash
+cd ../web
+cf push
+```
+
+Note: Your org/space must have quota assigned. If quota is 0 MB, deployment will fail.
+
 ## Manual validation checklist
 - Switch language EN / ES in the UI.
 - Spanish answers are fully localized.

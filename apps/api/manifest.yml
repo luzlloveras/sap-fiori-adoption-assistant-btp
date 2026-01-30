@@ -1,0 +1,7 @@
+---
+applications:
+  - name: fiori-assistant-api
+    memory: 256M
+    buildpack: nodejs_buildpack
+    command: pnpm start
+    random-route: true

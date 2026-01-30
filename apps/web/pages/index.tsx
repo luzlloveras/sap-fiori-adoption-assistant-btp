@@ -9,7 +9,8 @@ type AskResponse = {
   sources: { title: string; file: string; anchors?: string }[];
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const LANGUAGE_STORAGE_KEY = "fiori-assistant-language";
 
 const translations = {
