@@ -90,9 +90,6 @@ export default function Home() {
     setResponse(null);
     try {
       const payload = { question, language };
-      if (process.env.NODE_ENV !== "production") {
-        console.log("ask payload", payload);
-      }
       const res = await fetch(`${API_URL}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

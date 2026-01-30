@@ -1,39 +1,49 @@
 # Fiori Access AI Assistant
 
-An internal demo assistant for troubleshooting the scenario **"I can't see apps in SAP Fiori"** using a local knowledge base and a lightweight retrieval-augmented generation (RAG) pipeline. The assistant only answers from the provided sources and includes citations.
+## Project overview
+Internal assistant that helps troubleshoot the scenario **"I can't see apps in SAP Fiori"** using a local knowledge base and a lightweight retrieval‑augmented generation (RAG) flow. The assistant answers only from provided sources and includes citations.
 
-## What it does
-- Reads Markdown docs from `knowledge-base/` at API startup.
-- Retrieves the most relevant snippets with a simple BM25-style overlap score.
-- Calls an LLM provider (mock by default) using only those snippets.
-- Returns a structured response with summary, steps, follow-up questions, and sources.
+## Business problem
+When users cannot see apps in the SAP Fiori Launchpad, teams typically juggle roles, catalogs, spaces/pages, cache, and authorization checks across multiple stakeholders. A consistent troubleshooting workflow reduces time to resolution and avoids guesswork.
 
-## How it works (RAG + provider)
-1. **Ingestion**: Markdown files are split into chunks by headings and paragraphs.
-2. **Retrieval**: A BM25-like score ranks chunks based on term overlap with the question.
-3. **Generation**:
-   - **MockProvider**: deterministic response using the retrieved chunks.
-   - **OpenAIProvider**: used only when `OPENAI_API_KEY` is set.
-4. **Guardrails**: if top sources are weak, the API returns "I don't have enough info from the knowledge base".
+## Solution description
+The API loads Markdown knowledge at startup, retrieves the most relevant snippets with a simple BM25‑style score, and generates a structured response. The web UI provides a single‑page chat‑like experience and supports English and Spanish output.
 
-## Architecture
+## Architecture overview
 ```
 Browser (Next.js)
-    |
-    | POST /ask
-    v
+  |
+  | POST /ask
+  v
 API (Express)
-    |
-    | retrieve top-K
-    v
-Knowledge Base (Markdown)
-    |
-    | prompt with sources
-    v
+  |--> Retrieval (BM25-like) ---> Knowledge Base (Markdown)
+  |--> Prompt builder (grounded)
+  v
 LLM Provider (Mock or OpenAI)
 ```
 
-## How to run
+## AI design principles
+- **Retrieval‑augmented generation**: answers are grounded in local Markdown content.
+- **Source‑only responses**: the assistant is instructed to use only provided sources.
+- **Explainability**: responses include steps, follow‑up questions, and citations.
+- **Guardrails**: if sources are insufficient, it says so and asks clarifying questions.
+
+## Language support (EN / ES)
+The UI and responses support English and Spanish. SAP technical terms remain in English: `business role`, `PFCG role`, `catalog`, `space`, `page`, `Launchpad`, `target mapping`.
+
+## Expected business impact
+- Faster first‑line troubleshooting for access issues.
+- Reduced back‑and‑forth with basis/security teams.
+- Consistent, auditable guidance for common Fiori visibility problems.
+
+## Example questions
+- "I assigned a business role but the user still sees no tiles. What should I check first?"
+- "Only one app is missing from a space. Which checks help narrow that down?"
+- "Could personalization hide tiles, and how do I reset it?"
+- "How do I confirm the catalog and target mappings are in the right client?"
+- "What information should I request from basis or security to troubleshoot access?"
+
+## How to run locally
 ```bash
 pnpm install
 pnpm dev
@@ -41,26 +51,22 @@ pnpm dev
 
 The web app runs on `http://localhost:3000` and the API runs on `http://localhost:4000`.
 
-### Optional OpenAI config
-Create `apps/api/.env.example` (or `.env`) with:
+Optional OpenAI configuration in `apps/api/.env`:
 ```bash
 OPENAI_API_KEY=your_key
 OPENAI_MODEL=gpt-4o-mini
 PORT=4000
 ```
 
-## Demo questions
-- "I assigned a business role but the user still sees no tiles. What should I check first?"
-- "Only one app is missing from a space. Which checks help narrow that down?"
-- "Could personalization hide tiles, and how do I reset it?"
-- "How do I confirm the catalog and target mappings are in the right client?"
-- "What information should I request from basis or security to troubleshoot access?"
+## Manual validation checklist
+- Switch language EN / ES in the UI.
+- Spanish answers are fully localized.
+- SAP terms remain in English.
+- Steps and sources are present.
+- No hallucinations beyond the sources.
 
-## How this maps to SAP Generative AI Hub
-In SAP landscapes, the LLM call would be replaced by **SAP Generative AI Hub** for governed model access, logging, and policy enforcement. The local knowledge base and retrieval logic could be replaced or extended with **HANA Cloud** vector storage, while still applying the same guardrails and citation-driven responses.
+## SAP BTP & Generative AI Hub blueprint
+In SAP landscapes, the LLM call would be routed through **SAP Generative AI Hub** for governed access and policy enforcement. Retrieval could be backed by **HANA Cloud** vector storage while keeping the same grounding and citation model.
 
-## Scripts
-- `pnpm dev`: run API + web concurrently
-- `pnpm lint`: lint all workspaces
-- `pnpm typecheck`: strict type checks
-- `pnpm test`: run API unit tests
+## Disclaimer
+All knowledge base content is simulated and generic. It does not include SAP confidential information.

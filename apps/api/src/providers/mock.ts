@@ -21,7 +21,7 @@ export class MockProvider implements LLMProvider {
             ? "¿Qué app de Fiori o business role está afectado?"
             : "Which Fiori app or business role is affected?",
           language === "es"
-            ? "¿Qué client y system alias estás usando?"
+            ? "¿Qué cliente y alias de sistema estás usando?"
             : "Which client and system alias are you using?"
         ]
       });
@@ -32,7 +32,7 @@ export class MockProvider implements LLMProvider {
     const followUp = buildFollowUps(sources, language);
 
     return JSON.stringify({
-      answer: summary,
+      answer: buildAnswer(summary, language),
       steps,
       follow_up_questions: followUp
     });
@@ -64,26 +64,26 @@ function buildSummary(sources: ParsedSource[], language: "en" | "es"): string {
   const hints = extractHints(sources);
   if (language === "es") {
     if (hints.roles) {
-      return "Según la base de conocimiento, revisa primero el business role, catalog y la asignación de space/page en Launchpad.";
+      return "el business role, catalog y la asignación de space/page en Launchpad parecen ser el primer punto de revisión";
     }
     if (hints.cache) {
-      return "Según la base de conocimiento, el problema puede estar relacionado con caché o indexación de contenido en Launchpad.";
+      return "el problema puede estar relacionado con caché o indexación de contenido en Launchpad";
     }
     if (hints.auth) {
-      return "Según la base de conocimiento, conviene revisar authorization checks para el target mapping faltante.";
+      return "conviene revisar authorization checks para el target mapping faltante";
     }
-    return "Según la base de conocimiento, empieza con el checklist de visibilidad de apps en Launchpad.";
+    return "la visibilidad de apps en Launchpad requiere validar el checklist básico";
   }
   if (hints.roles) {
-    return "Based on the knowledge base, check the business role, catalog, and Launchpad space/page assignment first.";
+    return "the business role, catalog, and Launchpad space/page assignment are the most likely starting point";
   }
   if (hints.cache) {
-    return "Based on the knowledge base, the issue may relate to Launchpad cache or content indexing.";
+    return "the issue may relate to Launchpad cache or content indexing";
   }
   if (hints.auth) {
-    return "Based on the knowledge base, run authorization checks for the missing target mapping.";
+    return "authorization checks may be needed for the missing target mapping";
   }
-  return "Based on the knowledge base, start with the apps visibility checklist in Launchpad.";
+  return "the apps visibility checklist in Launchpad is the best starting point";
 }
 
 function buildSteps(
@@ -106,8 +106,11 @@ function buildSteps(
         "Revisa caché e indexación de contenido en Launchpad; prueba con una sesión nueva."
       );
     }
+    steps.push(
+      "Si aplica, restablece la personalización de la interfaz de usuario y vuelve a validar."
+    );
     if (hints.client) {
-      steps.push("Confirma client, system alias y user ID usados en la prueba.");
+      steps.push("Confirma cliente, alias de sistema e ID de usuario usados en la prueba.");
     }
     if (steps.length === 0) {
       steps.push("Sigue el checklist de apps no visibles en Launchpad.");
@@ -127,6 +130,9 @@ function buildSteps(
   if (hints.cache) {
     steps.push("Check cache and content indexing; retest with a fresh session.");
   }
+  steps.push(
+    "If applicable, reset the user's UI personalization and validate again."
+  );
   if (hints.client) {
     steps.push("Confirm client, system alias, and user ID used for testing.");
   }
@@ -145,7 +151,7 @@ function buildFollowUps(
   if (hints.client) {
     questions.push(
       language === "es"
-        ? "¿Qué client y system alias estás usando?"
+      ? "¿Qué cliente y alias de sistema estás usando?"
         : "Which client and system alias are you using?"
     );
   }
@@ -183,4 +189,11 @@ function extractHints(sources: ParsedSource[]): {
     client: text.includes("client") || text.includes("alias"),
     auth: text.includes("authorization") || text.includes("trace")
   };
+}
+
+function buildAnswer(summary: string, language: "en" | "es"): string {
+  if (language === "es") {
+    return `Causa probable: ${summary}. Puede ser necesario un análisis de autorización adicional.`;
+  }
+  return `Likely cause: ${summary}. Further authorization analysis may be required.`;
 }

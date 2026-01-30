@@ -101,6 +101,12 @@ export function buildPrompt(
     language === "es"
       ? "No tengo suficiente información en la base de conocimiento para responder eso."
       : "I don't have enough info from the knowledge base to answer that.";
+  const likelyCause =
+    language === "es" ? "Causa probable:" : "Likely cause:";
+  const closingLine =
+    language === "es"
+      ? "Puede ser necesario un análisis de autorización adicional."
+      : "Further authorization analysis may be required.";
 
   return [
     "You are an internal assistant that answers using ONLY the provided sources.",
@@ -108,6 +114,8 @@ export function buildPrompt(
     "Keep SAP technical terms in English even when responding in Spanish.",
     languageInstruction,
     "Use only the provided sources.",
+    `Start the answer with a short "${likelyCause}" sentence.`,
+    `End the answer with "${closingLine}".`,
     "If the sources do not contain the answer, respond with:",
     `"${guardrail}"`,
     "If you respond with the guardrail, ask 1-3 clarifying questions.",

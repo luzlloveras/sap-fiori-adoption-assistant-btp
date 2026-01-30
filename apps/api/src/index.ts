@@ -60,7 +60,7 @@ async function main() {
         language === "es"
           ? [
               "¿Qué app de Fiori o business role está afectado?",
-              "¿Qué sistema/cliente y user ID están en alcance?"
+              "¿Qué sistema/cliente e ID de usuario están en alcance?"
             ]
           : [
               "Which Fiori app or business role is affected?",
@@ -153,13 +153,13 @@ function localizeSourceTitle(file: string, language: Language): string | null {
     "roles-catalogs-spaces.md": "Relación entre roles, catalog y space/page",
     "role-assignment.md": "Asignación de business role y PFCG role",
     "cache-indexing.md": "Caché e indexación de contenido",
-    "client-system-alias.md": "Client, system alias y user mismatch",
-    "authorization-checks.md": "Enfoque de authorization checks",
-    "apps-not-visible-checklist.md": "Checklist de apps no visibles",
-    "request-info-basis-security.md": "Información para basis o security",
-    "ui-personalization.md": "Personalización de UI",
-    "launchpad-content-transport.md": "Contenido de Launchpad y transport",
-    "troubleshooting-overview.md": "Resumen de troubleshooting"
+    "client-system-alias.md": "Cliente, alias de sistema y desajuste de usuario",
+    "authorization-checks.md": "Enfoque para validaciones de autorización",
+    "apps-not-visible-checklist.md": "Lista de verificación de apps no visibles",
+    "request-info-basis-security.md": "Información para basis y seguridad",
+    "ui-personalization.md": "Personalización de la interfaz de usuario",
+    "launchpad-content-transport.md": "Contenido de Launchpad y transporte",
+    "troubleshooting-overview.md": "Resumen de resolución de problemas"
   };
   return mapping[file] ?? null;
 }
