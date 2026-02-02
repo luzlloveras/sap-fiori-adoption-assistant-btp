@@ -2,8 +2,9 @@
 applications:
   - name: fiori-assistant-web
     memory: 256M
-    buildpack: nodejs_buildpack
+    buildpacks:
+      - nodejs_buildpack
     command: pnpm start
     random-route: true
     env:
-      NEXT_PUBLIC_API_BASE_URL: https://REPLACE_WITH_API_ROUTE
+      API_URL: https://REPLACE_WITH_API_ROUTE
