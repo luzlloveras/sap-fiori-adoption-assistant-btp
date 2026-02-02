@@ -1,7 +1,11 @@
----
 applications:
   - name: fiori-assistant-api
     memory: 256M
-    buildpack: nodejs_buildpack
-    command: pnpm start
+    buildpacks:
+      - nodejs_buildpack
     random-route: true
+    env:
+      # Necesario para que instale devDependencies (TypeScript, etc.) en staging
+      NPM_CONFIG_PRODUCTION: "false"
+      # Forzar que corra build en staging si existe el script
+      BP_NODE_RUN_SCRIPTS: "build"
