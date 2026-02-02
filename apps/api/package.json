@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:lang": "tsx scripts/test-language.ts"
+    "test:lang": "tsx scripts/test-language.ts",
+    "generate:qa": "tsx scripts/generate-troubleshooting-qa.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

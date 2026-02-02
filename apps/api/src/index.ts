@@ -6,20 +6,63 @@ import {
   buildPrompt,
   type Language
 } from "./rag/index.js";
+import { createProvider } from "./providers/index.js";
 
-// Si vos ya tenés integración real con LLM, reemplazá esta función.
-// Esto NO debe romper nunca el startup.
-async function callLLM(_prompt: string): Promise<{
+type LlmPayload = {
   answer: string;
   steps: string[];
   follow_up_questions: string[];
-}> {
+};
+
+function buildFallback(language: Language): LlmPayload {
   return {
     answer:
-      "No tengo suficiente información en la base de conocimiento para responder eso.",
+      language === "es"
+        ? "No tengo suficiente información en la base de conocimiento para responder eso."
+        : "I don't have enough info from the knowledge base to answer that.",
     steps: [],
-    follow_up_questions: []
+    follow_up_questions:
+      language === "es"
+        ? [
+            "¿Qué app de Fiori o business role está afectado?",
+            "¿Qué cliente y alias de sistema estás usando?"
+          ]
+        : [
+            "Which Fiori app or business role is affected?",
+            "Which client and system alias are you using?"
+          ]
   };
+}
+
+function parseLlmResponse(raw: string, language: Language): LlmPayload {
+  const fallback = buildFallback(language);
+  if (!raw) return fallback;
+
+  let jsonText = raw.trim();
+  if (!jsonText.startsWith("{")) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      jsonText = match[0];
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<LlmPayload>;
+    return {
+      answer:
+        typeof parsed.answer === "string" ? parsed.answer : fallback.answer,
+      steps: Array.isArray(parsed.steps)
+        ? parsed.steps.filter((item): item is string => typeof item === "string")
+        : [],
+      follow_up_questions: Array.isArray(parsed.follow_up_questions)
+        ? parsed.follow_up_questions.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : []
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 async function main() {
@@ -48,6 +91,8 @@ async function main() {
 
   console.log(`[KB] chunks=${chunkCount}`);
 
+  const provider = createProvider();
+
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ status: "ok" });
   });
@@ -71,19 +116,13 @@ async function main() {
       const chunks = retrieveChunks(knowledgeBase, question, { topK: 4 });
       const prompt = buildPrompt(question, chunks, language);
 
-      const llmJson = await callLLM(prompt);
-
-      // Normalizar salida para que nunca sea undefined
-      const answer = typeof llmJson?.answer === "string" ? llmJson.answer : "";
-      const steps = Array.isArray(llmJson?.steps) ? llmJson.steps : [];
-      const follow = Array.isArray(llmJson?.follow_up_questions)
-        ? llmJson.follow_up_questions
-        : [];
+      const llmRaw = await provider.generate(prompt);
+      const llmJson = parseLlmResponse(llmRaw, language);
 
       return res.json({
-        answer,
-        steps,
-        follow_up_questions: follow
+        answer: llmJson.answer,
+        steps: llmJson.steps,
+        follow_up_questions: llmJson.follow_up_questions
       });
     } catch (err) {
       console.error("ask_error:", err);
