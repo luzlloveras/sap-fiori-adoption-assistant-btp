@@ -1,8 +1,8 @@
-import { API_BASE_URL } from "../lib/api";
-
 "use client";
 
+import { API_BASE_URL } from "../lib/api";
 import { useState } from "react";
+
 
 type Citation = {
   file: string;
