@@ -1,5 +1,4 @@
 import express, { type Request, type Response } from "express";
-import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,7 +7,7 @@ import { createProvider } from "./providers/index.js";
 import { routeHybrid } from "./hybrid/router.js";
 
 async function main() {
-  // 🔒 logs para evitar crash silencioso
+  // logs para evitar “crash silencioso”
   process.on("unhandledRejection", (err) =>
     console.error("unhandledRejection:", err)
   );
@@ -18,28 +17,51 @@ async function main() {
 
   const app = express();
 
-  // =========================
-  // ✅ CORS (UNA SOLA VEZ)
-  // =========================
-  app.use(
-    cors({
-      origin: true, // refleja cualquier origin (Vercel, Work Zone, localhost)
-      methods: ["GET", "POST", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
-    })
-  );
+  // ======================================================
+  // 🔥 CORS HARD FIX — responde SIEMPRE el preflight
+  // ======================================================
+  app.use((req, res, next) => {
+    const origin = req.headers.origin as string | undefined;
 
-  // Preflight (CRÍTICO para browser)
-  app.options("*", cors());
+    const allowList = [
+      "https://sap-fiori-adoption-assistant.vercel.app",
+      "http://localhost:3000",
+    ];
 
-  // =========================
-  // JSON
-  // =========================
+    const isVercelPreview =
+      origin && /^https:\/\/.*\.vercel\.app$/.test(origin);
+
+    const isWorkZone =
+      origin &&
+      /^https:\/\/.*\.launchpad\.cfapps\..*\.hana\.ondemand\.com$/.test(origin);
+
+    if (origin && (allowList.includes(origin) || isVercelPreview || isWorkZone)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization"
+    );
+
+    // 🔑 responder preflight
+    if (req.method === "OPTIONS") {
+      return res.status(204).send();
+    }
+
+    next();
+  });
+
+  // ======================================================
+  // JSON (DESPUÉS de CORS)
+  // ======================================================
   app.use(express.json({ limit: "1mb" }));
 
-  // =========================
+  // ======================================================
   // Knowledge Base
-  // =========================
+  // ======================================================
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const defaultKbPath = path.join(__dirname, "../knowledge-base");
@@ -57,16 +79,16 @@ async function main() {
 
   const provider = createProvider();
 
-  // =========================
+  // ======================================================
   // Health
-  // =========================
+  // ======================================================
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ status: "ok" });
   });
 
-  // =========================
+  // ======================================================
   // Ask
-  // =========================
+  // ======================================================
   app.post("/ask", async (req: Request, res: Response) => {
     try {
       const questionRaw = req.body?.question;
@@ -122,9 +144,9 @@ async function main() {
     }
   });
 
-  // =========================
+  // ======================================================
   // Server
-  // =========================
+  // ======================================================
   const port = Number(process.env.PORT ?? 8080);
   app.listen(port, "0.0.0.0", () => {
     console.log(`API listening on port ${port}`);
