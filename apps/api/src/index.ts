@@ -1,13 +1,14 @@
 import express, { type Request, type Response } from "express";
+import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import cors from "cors"; // ✅ solo una vez
 
 import { loadKnowledgeBase, type Language } from "./rag/index.js";
 import { createProvider } from "./providers/index.js";
 import { routeHybrid } from "./hybrid/router.js";
 
 async function main() {
+  // 🔒 logs para evitar crash silencioso
   process.on("unhandledRejection", (err) =>
     console.error("unhandledRejection:", err)
   );
@@ -17,42 +18,28 @@ async function main() {
 
   const app = express();
 
-  // ✅ CORS: antes de json y routes
-  const allowedOrigins: (string | RegExp)[] = [
-    "https://sap-fiori-adoption-assistant.vercel.app",
-    "http://localhost:3000",
-
-    // si el frontend se abre desde Work Zone (runtime), dejalo:
-    /^https:\/\/.*\.launchpad\.cfapps\..*\.hana\.ondemand\.com$/,
-
-    // si tenés preview deployments Vercel, descomentá:
-    // /^https:\/\/.*\.vercel\.app$/,
-  ];
-
+  // =========================
+  // ✅ CORS (UNA SOLA VEZ)
+  // =========================
   app.use(
     cors({
-      origin: (origin, cb) => {
-        // origin puede venir undefined (curl/postman/server-to-server)
-        if (!origin) return cb(null, true);
-
-        const ok = allowedOrigins.some((o) =>
-          typeof o === "string" ? o === origin : o.test(origin)
-        );
-
-        return cb(ok ? null : new Error(`CORS blocked for origin: ${origin}`), ok);
-      },
+      origin: true, // refleja cualquier origin (Vercel, Work Zone, localhost)
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
-      credentials: false,
     })
   );
 
-  // ✅ preflight
+  // Preflight (CRÍTICO para browser)
   app.options("*", cors());
 
+  // =========================
   // JSON
+  // =========================
   app.use(express.json({ limit: "1mb" }));
 
+  // =========================
+  // Knowledge Base
+  // =========================
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const defaultKbPath = path.join(__dirname, "../knowledge-base");
@@ -70,16 +57,24 @@ async function main() {
 
   const provider = createProvider();
 
+  // =========================
+  // Health
+  // =========================
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ status: "ok" });
   });
 
+  // =========================
+  // Ask
+  // =========================
   app.post("/ask", async (req: Request, res: Response) => {
     try {
       const questionRaw = req.body?.question;
       const languageRaw = req.body?.language;
 
-      const question = typeof questionRaw === "string" ? questionRaw.trim() : "";
+      const question =
+        typeof questionRaw === "string" ? questionRaw.trim() : "";
+
       const language: Language = languageRaw === "en" ? "en" : "es";
 
       if (!question) {
@@ -88,11 +83,11 @@ async function main() {
           confidence: 0.1,
           missing_info_questions: [
             "Falta 'question' en el body.",
-            "Incluí el problema y el contexto."
+            "Incluí el problema y el contexto.",
           ],
           recommended_actions: [],
           citations: [],
-          escalation_summary: "Solicitud inválida: falta question."
+          escalation_summary: "Solicitud inválida: falta question.",
         });
       }
 
@@ -100,30 +95,36 @@ async function main() {
         question,
         language,
         knowledgeBase,
-        provider
+        provider,
       });
 
       return res.json(response);
     } catch (err) {
       console.error("ask_error:", err);
-      const body = {
+
+      const body: Record<string, unknown> = {
         intent: "clarify",
         confidence: 0.1,
         missing_info_questions: [
           "Error interno procesando la consulta.",
-          "Intentá nuevamente con más detalles."
+          "Intentá nuevamente con más detalles.",
         ],
         recommended_actions: [],
         citations: [],
-        escalation_summary: "Error interno en /ask."
-      } as Record<string, unknown>;
+        escalation_summary: "Error interno en /ask.",
+      };
+
       if (process.env.NODE_ENV !== "production") {
         body.details = String((err as Error)?.stack ?? err);
       }
+
       return res.status(500).json(body);
     }
   });
 
+  // =========================
+  // Server
+  // =========================
   const port = Number(process.env.PORT ?? 8080);
   app.listen(port, "0.0.0.0", () => {
     console.log(`API listening on port ${port}`);
