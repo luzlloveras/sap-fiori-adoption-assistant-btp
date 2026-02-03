@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "../lib/api";
+
 "use client";
 
 import { useState } from "react";
@@ -30,7 +32,7 @@ export default function Page() {
     setLoading(true);
     setResponse(null);
     try {
-      const res = await fetch("/api/ask", {
+      const res = await fetch(`${API_BASE_URL}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, language }),
@@ -50,45 +52,46 @@ export default function Page() {
   const copy =
     language === "es"
       ? {
-          title: "Asistente de Adopción Fiori",
-          question: "Pregunta",
-          languageLabel: "Idioma",
-          ask: "Preguntar",
-          asking: "Consultando...",
-          missing: "Para continuar necesito:",
-          summaryTitle: "Resumen",
+        title: "Asistente de Adopción Fiori",
+        question: "Pregunta",
+        languageLabel: "Idioma",
+        ask: "Preguntar",
+        asking: "Consultando...",
+        missing: "Para continuar necesito:",
+        summaryTitle: "Resumen",
         noSummary: "Sin resumen",
         errorTitle: "Error",
         serverErrorTitle: "Error del servidor",
         serverErrorText: "No se pudo procesar la consulta en este momento.",
         serverErrorSummary: "No se pudo generar resumen: error del servidor.",
-          actionsHeading: "Qué revisar (en este orden)",
-          ticketTitle: "Texto para ticket",
-          noActions: "Sin acciones",
-          docsTitle: "Ver documentación",
-          docsSummary: "Resumen de referencia",
-          excerptLabel: "Ver extracto",
-        }
+        actionsHeading: "Qué revisar (en este orden)",
+        ticketTitle: "Texto para ticket",
+        noActions: "Sin acciones",
+        docsTitle: "Ver documentación",
+        docsSummary: "Resumen de referencia",
+        excerptLabel: "Ver extracto",
+      }
       : {
-          title: "Fiori Adoption Assistant",
-          question: "Question",
-          languageLabel: "Language",
-          ask: "Ask",
-          asking: "Asking...",
-          missing: "To continue I need:",
-          summaryTitle: "Summary",
+        title: "Fiori Adoption Assistant",
+        question: "Question",
+        languageLabel: "Language",
+        ask: "Ask",
+        asking: "Asking...",
+        missing: "To continue I need:",
+        summaryTitle: "Summary",
         noSummary: "No summary",
         errorTitle: "Error",
         serverErrorTitle: "Server error",
         serverErrorText: "The request could not be processed right now.",
         serverErrorSummary: "Could not generate summary: server error.",
-          actionsHeading: "What to review (in this order)",
-          ticketTitle: "Ticket text",
-          noActions: "No actions",
-          docsTitle: "View documentation",
-          docsSummary: "Reference summary",
-          excerptLabel: "View excerpt",
-        };
+        actionsHeading: "What to review (in this order)",
+        ticketTitle: "Ticket text",
+        noActions: "No actions",
+        docsTitle: "View documentation",
+        docsSummary: "Reference summary",
+        excerptLabel: "View excerpt",
+      };
+
 
   const summaryText = extractSummary(response?.escalation_summary);
   const backendError = isBackendError(response);
