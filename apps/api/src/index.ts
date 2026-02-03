@@ -1,13 +1,13 @@
 import express, { type Request, type Response } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import cors from "cors"; //  ADD
+import cors from "cors"; // ✅ solo una vez
+
 import { loadKnowledgeBase, type Language } from "./rag/index.js";
 import { createProvider } from "./providers/index.js";
 import { routeHybrid } from "./hybrid/router.js";
 
 async function main() {
-  // logs para evitar “crash silencioso”
   process.on("unhandledRejection", (err) =>
     console.error("unhandledRejection:", err)
   );
@@ -17,13 +17,16 @@ async function main() {
 
   const app = express();
 
-  //  CORS (ANTES de json y routes)
+  // ✅ CORS: antes de json y routes
   const allowedOrigins: (string | RegExp)[] = [
     "https://sap-fiori-adoption-assistant.vercel.app",
-    // si tenés preview deployments, descomentá:
+    "http://localhost:3000",
+
+    // si el frontend se abre desde Work Zone (runtime), dejalo:
+    /^https:\/\/.*\.launchpad\.cfapps\..*\.hana\.ondemand\.com$/,
+
+    // si tenés preview deployments Vercel, descomentá:
     // /^https:\/\/.*\.vercel\.app$/,
-    // si también vas a consumir desde Work Zone runtime:
-    /^https:\/\/.*\.launchpad\.cfapps\..*\.hana\.ondemand\.com$/
   ];
 
   app.use(
@@ -35,16 +38,16 @@ async function main() {
         const ok = allowedOrigins.some((o) =>
           typeof o === "string" ? o === origin : o.test(origin)
         );
+
         return cb(ok ? null : new Error(`CORS blocked for origin: ${origin}`), ok);
       },
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
-      // si NO usás cookies entre dominios, dejalo false:
-      credentials: false
+      credentials: false,
     })
   );
 
-  // Preflight
+  // ✅ preflight
   app.options("*", cors());
 
   // JSON
@@ -59,7 +62,6 @@ async function main() {
 
   const knowledgeBase = await loadKnowledgeBase(kbPath);
 
-  // No asumimos props extra: usamos chunks siempre
   const chunkCount = Array.isArray(knowledgeBase?.chunks)
     ? knowledgeBase.chunks.length
     : 0;
