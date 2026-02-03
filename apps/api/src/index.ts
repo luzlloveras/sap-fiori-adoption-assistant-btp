@@ -1,10 +1,8 @@
 import express, { type Request, type Response } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  loadKnowledgeBase,
-  type Language
-} from "./rag/index.js";
+import cors from "cors"; //  ADD
+import { loadKnowledgeBase, type Language } from "./rag/index.js";
 import { createProvider } from "./providers/index.js";
 import { routeHybrid } from "./hybrid/router.js";
 
@@ -18,6 +16,38 @@ async function main() {
   );
 
   const app = express();
+
+  //  CORS (ANTES de json y routes)
+  const allowedOrigins: (string | RegExp)[] = [
+    "https://sap-fiori-adoption-assistant.vercel.app",
+    // si tenés preview deployments, descomentá:
+    // /^https:\/\/.*\.vercel\.app$/,
+    // si también vas a consumir desde Work Zone runtime:
+    /^https:\/\/.*\.launchpad\.cfapps\..*\.hana\.ondemand\.com$/
+  ];
+
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        // origin puede venir undefined (curl/postman/server-to-server)
+        if (!origin) return cb(null, true);
+
+        const ok = allowedOrigins.some((o) =>
+          typeof o === "string" ? o === origin : o.test(origin)
+        );
+        return cb(ok ? null : new Error(`CORS blocked for origin: ${origin}`), ok);
+      },
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+      // si NO usás cookies entre dominios, dejalo false:
+      credentials: false
+    })
+  );
+
+  // Preflight
+  app.options("*", cors());
+
+  // JSON
   app.use(express.json({ limit: "1mb" }));
 
   const __filename = fileURLToPath(import.meta.url);
