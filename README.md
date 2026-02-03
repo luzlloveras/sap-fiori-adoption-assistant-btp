@@ -9,17 +9,14 @@ When users cannot see apps in the SAP Fiori Launchpad, teams typically juggle ro
 ## Solution description
 The API loads Markdown knowledge at startup, retrieves the most relevant snippets with a simple BM25‑style score, and generates a structured response. The web UI provides a single‑page chat‑like experience and supports English and Spanish output.
 
-## Architecture overview
+## Architecture
+UI (`apps/web`) calls the Next.js proxy `/api/ask`, which forwards to the API (`apps/api` `/ask`). The API uses a hybrid router that chooses between RULES_ONLY, RAG_LLM, or CLARIFY. Retrieval is BM25‑like over Markdown knowledge base content, with grounding guardrails and citations in the response.
+
+ASCII diagram:
 ```
-Browser (Next.js)
-  |
-  | POST /ask
-  v
-API (Express)
-  |--> Retrieval (BM25-like) ---> Knowledge Base (Markdown)
-  |--> Prompt builder (grounded)
-  v
-LLM Provider (Mock or OpenAI)
+[User] -> [apps/web UI] -> [/api/ask proxy] -> [/ask API]
+                         -> [Hybrid Router] -> (RULES_ONLY | RAG_LLM | CLARIFY)
+                         -> [KB Retrieval] -> [LLM Provider] -> [JSON Response + Citations]
 ```
 
 ## AI design principles
@@ -43,19 +40,19 @@ The UI and responses support English and Spanish. SAP technical terms remain in 
 - "How do I confirm the catalog and target mappings are in the right client?"
 - "What information should I request from basis or security to troubleshoot access?"
 
-## How to run locally
+## Run locally
 ```bash
 pnpm install
-pnpm dev
+pnpm -C apps/api dev
+pnpm -C apps/web dev
 ```
 
-The web app runs on `http://localhost:3000` and the API runs on `http://localhost:4000`.
+The web app runs on `http://localhost:3000` and the API runs on `http://localhost:8080`.
 
 Optional OpenAI configuration in `apps/api/.env`:
 ```bash
 OPENAI_API_KEY=your_key
 OPENAI_MODEL=gpt-4o-mini
-PORT=4000
 ```
 
 ## Deploy to SAP BTP Cloud Foundry
@@ -71,7 +68,7 @@ cf push
 cf app fiori-assistant-api
 ```
 
-Copy the route from `cf app` into `apps/web/manifest.yml` as `NEXT_PUBLIC_API_BASE_URL`.
+Copy the route from `cf app` into `apps/web/manifest.yml` as `API_URL`.
 
 Deploy web:
 ```bash
@@ -87,6 +84,9 @@ Note: Your org/space must have quota assigned. If quota is 0 MB, deployment will
 - SAP terms remain in English.
 - Steps and sources are present.
 - No hallucinations beyond the sources.
+
+## Demo (placeholder)
+`docs/demo.gif`
 
 ## SAP BTP & Generative AI Hub blueprint
 In SAP landscapes, the LLM call would be routed through **SAP Generative AI Hub** for governed access and policy enforcement. Retrieval could be backed by **HANA Cloud** vector storage while keeping the same grounding and citation model.

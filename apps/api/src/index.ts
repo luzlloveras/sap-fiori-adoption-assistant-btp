@@ -1,69 +1,12 @@
 import express, { type Request, type Response } from "express";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   loadKnowledgeBase,
-  retrieveChunks,
-  buildPrompt,
   type Language
 } from "./rag/index.js";
 import { createProvider } from "./providers/index.js";
-
-type LlmPayload = {
-  answer: string;
-  steps: string[];
-  follow_up_questions: string[];
-};
-
-function buildFallback(language: Language): LlmPayload {
-  return {
-    answer:
-      language === "es"
-        ? "No tengo suficiente información en la base de conocimiento para responder eso."
-        : "I don't have enough info from the knowledge base to answer that.",
-    steps: [],
-    follow_up_questions:
-      language === "es"
-        ? [
-            "¿Qué app de Fiori o business role está afectado?",
-            "¿Qué cliente y alias de sistema estás usando?"
-          ]
-        : [
-            "Which Fiori app or business role is affected?",
-            "Which client and system alias are you using?"
-          ]
-  };
-}
-
-function parseLlmResponse(raw: string, language: Language): LlmPayload {
-  const fallback = buildFallback(language);
-  if (!raw) return fallback;
-
-  let jsonText = raw.trim();
-  if (!jsonText.startsWith("{")) {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) {
-      jsonText = match[0];
-    }
-  }
-
-  try {
-    const parsed = JSON.parse(jsonText) as Partial<LlmPayload>;
-    return {
-      answer:
-        typeof parsed.answer === "string" ? parsed.answer : fallback.answer,
-      steps: Array.isArray(parsed.steps)
-        ? parsed.steps.filter((item): item is string => typeof item === "string")
-        : [],
-      follow_up_questions: Array.isArray(parsed.follow_up_questions)
-        ? parsed.follow_up_questions.filter(
-            (item): item is string => typeof item === "string"
-          )
-        : []
-    };
-  } catch {
-    return fallback;
-  }
-}
+import { routeHybrid } from "./hybrid/router.js";
 
 async function main() {
   // logs para evitar “crash silencioso”
@@ -77,8 +20,10 @@ async function main() {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
-  const kbPath =
-    process.env.KNOWLEDGE_BASE_PATH ?? path.join(process.cwd(), "knowledge-base");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const defaultKbPath = path.join(__dirname, "../knowledge-base");
+  const kbPath = process.env.KNOWLEDGE_BASE_PATH ?? defaultKbPath;
 
   console.log(`[KB] path=${kbPath}`);
 
@@ -107,30 +52,43 @@ async function main() {
 
       if (!question) {
         return res.status(400).json({
-          answer: "Falta 'question' en el body.",
-          steps: [],
-          follow_up_questions: []
+          intent: "clarify",
+          confidence: 0.1,
+          missing_info_questions: [
+            "Falta 'question' en el body.",
+            "Incluí el problema y el contexto."
+          ],
+          recommended_actions: [],
+          citations: [],
+          escalation_summary: "Solicitud inválida: falta question."
         });
       }
 
-      const chunks = retrieveChunks(knowledgeBase, question, { topK: 4 });
-      const prompt = buildPrompt(question, chunks, language);
-
-      const llmRaw = await provider.generate(prompt);
-      const llmJson = parseLlmResponse(llmRaw, language);
-
-      return res.json({
-        answer: llmJson.answer,
-        steps: llmJson.steps,
-        follow_up_questions: llmJson.follow_up_questions
+      const response = await routeHybrid({
+        question,
+        language,
+        knowledgeBase,
+        provider
       });
+
+      return res.json(response);
     } catch (err) {
       console.error("ask_error:", err);
-      return res.status(500).json({
-        answer: "Error interno procesando la consulta.",
-        steps: [],
-        follow_up_questions: []
-      });
+      const body = {
+        intent: "clarify",
+        confidence: 0.1,
+        missing_info_questions: [
+          "Error interno procesando la consulta.",
+          "Intentá nuevamente con más detalles."
+        ],
+        recommended_actions: [],
+        citations: [],
+        escalation_summary: "Error interno en /ask."
+      } as Record<string, unknown>;
+      if (process.env.NODE_ENV !== "production") {
+        body.details = String((err as Error)?.stack ?? err);
+      }
+      return res.status(500).json(body);
     }
   });
 

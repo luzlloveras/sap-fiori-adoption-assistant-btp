@@ -13,14 +13,14 @@ async function ask(question, language) {
 async function main() {
     const en = await ask("I can't see apps after assigning a role", "en");
     const es = await ask("Asigné un rol pero no veo apps", "es");
-    if (!/verify|check|confirm|based on/i.test(en.answer)) {
-        throw new Error("Expected English answer in en response.");
+    if (!/escalation summary|summary/i.test(en.escalation_summary.toLowerCase())) {
+        throw new Error("Expected English escalation summary.");
     }
-    if (!/verifica|revisa|según|empieza/i.test(es.answer)) {
-        throw new Error("Expected Spanish answer in es response.");
+    if (!/resumen|escalamiento|escalacion/i.test(es.escalation_summary.toLowerCase())) {
+        throw new Error("Expected Spanish escalation summary.");
     }
-    if (/If a user can log in/i.test(es.answer)) {
-        throw new Error("Unexpected English phrase in es answer.");
+    if (/escalation summary/i.test(es.escalation_summary.toLowerCase())) {
+        throw new Error("Unexpected English phrase in es escalation summary.");
     }
     console.log("Language checks passed.");
 }

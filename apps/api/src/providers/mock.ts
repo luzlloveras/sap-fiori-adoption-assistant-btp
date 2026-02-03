@@ -7,6 +7,9 @@ type ParsedSource = {
 
 export class MockProvider implements LLMProvider {
   async generate(prompt: string): Promise<string> {
+    if (prompt.includes("recommended_actions") && prompt.includes("SOURCES_START")) {
+      return JSON.stringify(buildHybridResponse(prompt));
+    }
     const sources = parseSources(prompt);
     const language = detectLanguage(prompt);
     if (sources.length === 0) {
@@ -18,7 +21,7 @@ export class MockProvider implements LLMProvider {
         steps: [],
         follow_up_questions: [
           language === "es"
-            ? "¿Qué app de Fiori o business role está afectado?"
+            ? "¿Qué app de Fiori o rol de negocio está afectado?"
             : "Which Fiori app or business role is affected?",
           language === "es"
             ? "¿Qué cliente y alias de sistema estás usando?"
@@ -64,15 +67,15 @@ function buildSummary(sources: ParsedSource[], language: "en" | "es"): string {
   const hints = extractHints(sources);
   if (language === "es") {
     if (hints.roles) {
-      return "el business role, catalog y la asignación de space/page en Launchpad parecen ser el primer punto de revisión";
+      return "el rol de negocio, el catálogo y la asignación de espacio/página en Launchpad parecen ser el primer punto de revisión";
     }
     if (hints.cache) {
       return "el problema puede estar relacionado con caché o indexación de contenido en Launchpad";
     }
     if (hints.auth) {
-      return "conviene revisar authorization checks para el target mapping faltante";
+      return "conviene revisar autorizaciones para el mapeo de destino faltante";
     }
-    return "la visibilidad de apps en Launchpad requiere validar el checklist básico";
+    return "la visibilidad de aplicaciones en Launchpad requiere validar la lista de verificación básica";
   }
   if (hints.roles) {
     return "the business role, catalog, and Launchpad space/page assignment are the most likely starting point";
@@ -95,10 +98,10 @@ function buildSteps(
     const steps: string[] = [];
     if (hints.roles) {
       steps.push(
-        "Verifica que el usuario tenga el business role correcto y el catalog requerido."
+        "Verifica que el usuario tenga el rol de negocio correcto y el catálogo requerido."
       );
       steps.push(
-        "Confirma que la asignación de space/page en Launchpad esté activa y en el mismo business role."
+        "Confirma que la asignación de espacio/página en Launchpad esté activa y en el mismo rol de negocio."
       );
     }
     if (hints.cache) {
@@ -113,7 +116,7 @@ function buildSteps(
       steps.push("Confirma cliente, alias de sistema e ID de usuario usados en la prueba.");
     }
     if (steps.length === 0) {
-      steps.push("Sigue el checklist de apps no visibles en Launchpad.");
+      steps.push("Sigue la lista de verificación de aplicaciones no visibles en Launchpad.");
     }
     return steps.slice(0, 5);
   }
@@ -158,13 +161,13 @@ function buildFollowUps(
   if (hints.roles) {
     questions.push(
       language === "es"
-        ? "¿Qué business role o PFCG role está asignado al usuario?"
+        ? "¿Qué rol de negocio o PFCG está asignado al usuario?"
         : "What business role or PFCG role is assigned to the user?"
     );
   }
   questions.push(
     language === "es"
-      ? "¿Qué app tile o target mapping específico falta?"
+      ? "¿Qué aplicación o mapeo de destino específico falta?"
       : "Which exact app tile or target mapping is missing?"
   );
   return questions.slice(0, 3);
@@ -196,4 +199,73 @@ function buildAnswer(summary: string, language: "en" | "es"): string {
     return `Causa probable: ${summary}. Puede ser necesario un análisis de autorización adicional.`;
   }
   return `Likely cause: ${summary}. Further authorization analysis may be required.`;
+}
+
+function buildHybridResponse(prompt: string): {
+  recommended_actions: string[];
+  missing_info_questions: string[];
+  escalation_summary: string;
+} {
+  const sources = parseSources(prompt);
+  const language = detectLanguage(prompt);
+  if (!sources.length) {
+    return {
+      recommended_actions: [],
+      missing_info_questions:
+        language === "es"
+          ? ["¿Qué aplicación específica falta?", "¿Qué rol está asignado?"]
+          : ["Which specific app or tile is missing?", "Which role is assigned?"],
+      escalation_summary:
+        language === "es"
+          ? [
+              "Para ticket:",
+              "- Síntoma: falta información para diagnosticar",
+              "- Acciones sugeridas: No aplica",
+              "- Información faltante: role/cliente",
+              "- Próximos pasos: pedir más contexto"
+            ].join("\n")
+          : [
+              "For ticket:",
+              "- Symptom: insufficient information to diagnose",
+              "- Suggested actions: Not applicable",
+              "- Missing info: role/client",
+              "- Next steps: ask for more context"
+            ].join("\n")
+    };
+  }
+
+  const summary = buildSummary(sources, language);
+  const steps = buildSteps(sources, language);
+  const followUps = buildFollowUps(sources, language);
+  const { actions, escalation } = buildChecklistOutput(steps, language);
+  return {
+    recommended_actions: actions,
+    missing_info_questions: followUps,
+    escalation_summary: escalation
+  };
+}
+
+function buildChecklistOutput(
+  steps: string[],
+  language: "en" | "es"
+): { actions: string[]; escalation: string } {
+  const actions = steps.slice(0, 5);
+  const actionsText = actions.slice(0, 3).join("; ");
+  const escalation =
+    language === "es"
+      ? [
+          "Texto para ticket:",
+          "- Síntoma: problema de Launchpad",
+          `- Acciones sugeridas: ${actionsText || "No aplica"}`,
+          "- Información faltante: No aplica",
+          "- Escalar si: el problema persiste tras validar los pasos"
+        ].join("\n")
+      : [
+          "Ticket text:",
+          "- Symptom: Launchpad issue",
+          `- Suggested actions: ${actionsText || "Not applicable"}`,
+          "- Missing info: Not applicable",
+          "- Escalate if: issue persists after validations"
+        ].join("\n");
+  return { actions, escalation };
 }

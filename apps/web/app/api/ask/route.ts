@@ -6,13 +6,8 @@ type AskRequest = {
 };
 
 export async function POST(request: Request) {
-  const apiUrl = process.env.API_URL;
-  if (!apiUrl) {
-    return NextResponse.json(
-      { error: "API_URL is not set" },
-      { status: 500 }
-    );
-  }
+  // Uses API_URL if provided; falls back to local dev API on 8080.
+  const apiBaseUrl = process.env.API_URL?.trim() || "http://localhost:8080";
 
   let body: AskRequest | undefined;
   try {
@@ -27,7 +22,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const targetUrl = `${apiUrl.replace(/\/$/, "")}/ask`;
+  const targetUrl = `${apiBaseUrl.replace(/\/$/, "")}/ask`;
 
   try {
     const response = await fetch(targetUrl, {
@@ -48,7 +43,7 @@ export async function POST(request: Request) {
         error: "Failed to reach backend",
         details: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      { status: 502 }
     );
   }
 }
