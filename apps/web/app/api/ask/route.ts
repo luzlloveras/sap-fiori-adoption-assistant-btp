@@ -73,7 +73,14 @@ export async function POST(request: Request) {
       question,
       language,
       knowledgeBase,
-      provider
+      provider,
+      trace: {
+        provider: process.env.OPENAI_API_KEY?.trim()
+          ? "sap-genai-hub"
+          : "mock",
+        model: process.env.OPENAI_MODEL ?? "default",
+        startMs: Date.now()
+      }
     });
     return NextResponse.json(response, { status: 200 });
   } catch (error) {

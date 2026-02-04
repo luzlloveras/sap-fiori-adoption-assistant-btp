@@ -79,6 +79,13 @@ async function main() {
         language,
         knowledgeBase,
         provider,
+        trace: {
+          provider: process.env.OPENAI_API_KEY?.trim()
+            ? "sap-genai-hub"
+            : "mock",
+          model: process.env.OPENAI_MODEL ?? "default",
+          startMs: Date.now()
+        }
       });
 
       return res.json(response);

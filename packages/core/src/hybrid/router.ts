@@ -9,6 +9,12 @@ type LlmHybridPayload = {
   escalation_summary: string;
 };
 
+type TraceOptions = {
+  provider?: string;
+  model?: string;
+  startMs?: number;
+};
+
 type ChecklistTemplate = {
   steps: string[];
 };
@@ -699,13 +705,37 @@ export async function routeHybrid({
   question,
   language,
   knowledgeBase,
-  provider
+  provider,
+  trace
 }: {
   question: string;
   language: Language;
   knowledgeBase: KnowledgeBase;
   provider: LLMProvider;
+  trace?: TraceOptions;
 }): Promise<HybridResponse> {
+  const traceStart = trace?.startMs ?? Date.now();
+  const traceProvider = trace?.provider ?? "unknown";
+  const traceModel = trace?.model ?? "unknown";
+
+  const emitTrace = (
+    route: RoutePath,
+    intent: Intent,
+    chunkCount: number
+  ): void => {
+    console.log(
+      "[trace]",
+      JSON.stringify({
+        intent,
+        route,
+        kbChunks: chunkCount,
+        provider: traceProvider,
+        model: traceModel,
+        latencyMs: Date.now() - traceStart
+      })
+    );
+  };
+
   try {
     const classification = classifyIntent(question);
     const isGlobal = detectGlobalScope(question);
@@ -722,7 +752,13 @@ export async function routeHybrid({
           kbChunks: chunkCount
         })
       );
-      return buildKbMissingClarify(question, language, classification.intent);
+      const response = buildKbMissingClarify(
+        question,
+        language,
+        classification.intent
+      );
+      emitTrace("CLARIFY", response.intent, chunkCount);
+      return response;
     }
     const route = decideRoute(classification.intent, classification.confidence);
     console.log(
@@ -742,38 +778,58 @@ export async function routeHybrid({
         classification.intent
       );
       if (citations.length > 0) {
-        return buildRulesOnlyResponse(
+        const response = buildRulesOnlyResponse(
           question,
           language,
           knowledgeBase,
           classification
         );
+        emitTrace("RULES_ONLY", response.intent, chunkCount);
+        return response;
       }
-      return buildClarifyResponse(
+      const response = buildClarifyResponse(
         question,
         language,
         knowledgeBase,
         classification
       );
+      emitTrace("CLARIFY", response.intent, chunkCount);
+      return response;
     }
 
     if (route === "CLARIFY") {
-      return buildClarifyResponse(question, language, knowledgeBase, classification);
+      const response = buildClarifyResponse(
+        question,
+        language,
+        knowledgeBase,
+        classification
+      );
+      emitTrace("CLARIFY", response.intent, chunkCount);
+      return response;
     }
 
     if (route === "RULES_ONLY") {
-      return buildRulesOnlyResponse(question, language, knowledgeBase, classification);
+      const response = buildRulesOnlyResponse(
+        question,
+        language,
+        knowledgeBase,
+        classification
+      );
+      emitTrace("RULES_ONLY", response.intent, chunkCount);
+      return response;
     }
 
-    return buildRagLlmResponse(
+    const response = await buildRagLlmResponse(
       question,
       language,
       knowledgeBase,
       provider,
       classification
     );
+    emitTrace("RAG_LLM", response.intent, chunkCount);
+    return response;
   } catch (error) {
-    return {
+    const response: HybridResponse = {
       intent: "clarify",
       confidence: 0.1,
       missing_info_questions: [
@@ -789,6 +845,8 @@ export async function routeHybrid({
       escalation_summary:
         "Falla técnica en KB/retrieval: revisar logs del backend y path de knowledge base."
     };
+    emitTrace("CLARIFY", response.intent, 0);
+    return response;
   }
 }
 
@@ -852,20 +910,25 @@ async function buildRagLlmResponse(
   const llmJson = parseHybridLlm(llmRaw, language);
   const citations = chunksToCitations(chunks, 4);
   const playbook = getPlaybookForIntent(classification.intent);
-  const actions = (llmJson.recommended_actions ?? []).filter(Boolean);
+  const actions = uniqueStrings(
+    (llmJson.recommended_actions ?? []).filter(Boolean)
+  );
+  const missing = uniqueStrings(
+    (llmJson.missing_info_questions ?? []).filter(Boolean)
+  );
   const summary = pickSummary(playbook, language);
 
   return {
     intent: classification.intent,
     confidence: classification.confidence,
-    missing_info_questions: llmJson.missing_info_questions,
+    missing_info_questions: missing,
     recommended_actions: actions,
     citations,
     escalation_summary: buildTicketSummary({
       summary,
       question,
       actions,
-      missing: llmJson.missing_info_questions,
+      missing,
       language
     })
   };
@@ -1002,6 +1065,9 @@ function buildHybridPrompt(
     "escalation_summary (ticket-ready short block).",
     "Do not include markdown or extra text.",
     "Do NOT provide explanations or hypotheses.",
+    "Order steps as: verification/measurement, corrective action, re-test.",
+    "Prefix steps with Verificar/Acción/Validar (or Verify/Action/Validate) when clear.",
+    "Avoid repeating the same information in steps and missing_info_questions.",
     "Steps must be actionable and grounded in the sources only.",
     "Escalation summary must include: symptom, suggested actions, missing info, and when to escalate.",
     "",
@@ -1054,7 +1120,7 @@ function getPlaybookForIntent(intent: Intent): IntentPlaybook {
 
 function buildActionList(playbook: IntentPlaybook, language: Language): string[] {
   const actions = buildActionsFromPlaybook(playbook, language);
-  return actions.slice(0, 6);
+  return uniqueStrings(actions).slice(0, 6);
 }
 
 function pickSummary(playbook: IntentPlaybook, language: Language): string {
@@ -1172,6 +1238,16 @@ function toStringArray(value: unknown): string[] {
     return [value.trim()];
   }
   return [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  return (values ?? []).filter((value) => {
+    const key = value.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function pickByLanguage(value: unknown, language: "es" | "en"): unknown {
