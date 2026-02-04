@@ -34,7 +34,7 @@ async function getKnowledgeBase(): Promise<KnowledgeBase> {
 
 export async function POST(request: Request) {
   console.log("[env]", {
-    LLM_PROVIDER: process.env.LLM_PROVIDER ?? null,
+    LLM_PROVIDER: process.env.LLM_PROVIDER ?? "mock",
     AICORE_BASE_URL: Boolean(process.env.AICORE_BASE_URL),
     AICORE_AUTH_URL: Boolean(process.env.AICORE_AUTH_URL),
     AICORE_CLIENT_ID: Boolean(process.env.AICORE_CLIENT_ID),
@@ -84,13 +84,11 @@ export async function POST(request: Request) {
       knowledgeBase,
       provider,
       trace: {
-        provider: process.env.OPENAI_API_KEY?.trim()
-          ? "sap-genai-hub"
-          : "mock",
-        model: process.env.OPENAI_MODEL ?? "default",
+        provider: process.env.LLM_PROVIDER ?? "mock",
+        model: process.env.AICORE_MODEL ?? process.env.OPENAI_MODEL ?? "default",
         startMs: Date.now()
       }
-    });
+    } as Parameters<typeof routeHybrid>[0]);
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     const body: Record<string, unknown> = {
