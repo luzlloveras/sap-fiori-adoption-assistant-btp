@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       provider,
       trace: {
         provider: process.env.LLM_PROVIDER ?? "mock",
-        model: process.env.AICORE_MODEL ?? process.env.OPENAI_MODEL ?? "default",
+        model: process.env.AICORE_MODEL ?? "default",
         startMs: Date.now()
       }
     } as Parameters<typeof routeHybrid>[0]);
