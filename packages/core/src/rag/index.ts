@@ -32,6 +32,10 @@ type RetrieveOptions = {
 const DEFAULT_TOP_K = 4;
 
 export async function loadKnowledgeBase(kbPath: string): Promise<KnowledgeBase> {
+  if (kbPath.startsWith("http") || kbPath.startsWith("/")) {
+    return loadKnowledgeBaseFromUrl(kbPath);
+  }
+
   let files: string[] = [];
   try {
     files = await fs.readdir(kbPath);
@@ -77,6 +81,76 @@ export async function loadKnowledgeBase(kbPath: string): Promise<KnowledgeBase> 
     docFrequencies,
     mdFileCount: markdownFiles.length
   };
+}
+
+async function loadKnowledgeBaseFromUrl(kbPath: string): Promise<KnowledgeBase> {
+  const baseUrl = resolveKbUrl(kbPath);
+  const indexUrl = `${baseUrl}/index.json`;
+  let files: string[] = [];
+  try {
+    const response = await fetch(indexUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`KB index fetch failed: ${response.status}`);
+    }
+    const data = (await response.json()) as unknown;
+    files = Array.isArray(data)
+      ? data.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return {
+      chunks: [],
+      docCount: 0,
+      avgDocLength: 0,
+      docFrequencies: new Map<string, number>(),
+      mdFileCount: 0
+    };
+  }
+
+  const markdownFiles = files.filter((file) => file.toLowerCase().endsWith(".md"));
+  const chunks: Chunk[] = [];
+
+  for (const file of markdownFiles) {
+    const fileUrl = `${baseUrl}/${file}`;
+    let content = "";
+    try {
+      const response = await fetch(fileUrl, { cache: "no-store" });
+      if (!response.ok) {
+        continue;
+      }
+      content = await response.text();
+    } catch {
+      continue;
+    }
+    const fileChunks = chunkMarkdown(content, file);
+    chunks.push(...fileChunks);
+  }
+
+  const docFrequencies = new Map<string, number>();
+  for (const chunk of chunks) {
+    const unique = new Set(chunk.tokens);
+    for (const token of unique) {
+      docFrequencies.set(token, (docFrequencies.get(token) ?? 0) + 1);
+    }
+  }
+
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  return {
+    chunks,
+    docCount: chunks.length,
+    avgDocLength: chunks.length === 0 ? 0 : totalLength / chunks.length,
+    docFrequencies,
+    mdFileCount: markdownFiles.length
+  };
+}
+
+function resolveKbUrl(kbPath: string): string {
+  const trimmed = kbPath.replace(/\/$/, "");
+  if (trimmed.startsWith("http")) {
+    return trimmed;
+  }
+  const origin =
+    process.env.KNOWLEDGE_BASE_ORIGIN?.trim() || "http://localhost:3000";
+  return `${origin}${trimmed}`;
 }
 
 export function getDefaultKnowledgeBasePath(): string {

@@ -16,16 +16,27 @@ type AskRequest = {
 };
 
 let cachedKnowledgeBase: KnowledgeBase | null = null;
+let cachedKbPath: string | null = null;
 let knowledgeBasePromise: Promise<KnowledgeBase> | null = null;
 const provider = createProvider();
 
-async function getKnowledgeBase(): Promise<KnowledgeBase> {
-  if (cachedKnowledgeBase) return cachedKnowledgeBase;
+async function getKnowledgeBase(origin: string): Promise<KnowledgeBase> {
+  const basePath = process.env.KNOWLEDGE_BASE_PATH;
+  const kbPath = basePath
+    ? basePath.startsWith("http")
+      ? basePath
+      : basePath.startsWith("/")
+        ? `${origin}${basePath}`
+        : basePath
+    : getDefaultKnowledgeBasePath();
+  if (cachedKnowledgeBase && cachedKbPath === kbPath) return cachedKnowledgeBase;
+  if (cachedKbPath !== kbPath) {
+    knowledgeBasePromise = null;
+  }
   if (!knowledgeBasePromise) {
-    const kbPath =
-      process.env.KNOWLEDGE_BASE_PATH ?? getDefaultKnowledgeBasePath();
     knowledgeBasePromise = loadKnowledgeBase(kbPath).then((kb) => {
       cachedKnowledgeBase = kb;
+      cachedKbPath = kbPath;
       return kb;
     });
   }
@@ -77,7 +88,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const knowledgeBase = await getKnowledgeBase();
+    const origin = new URL(request.url).origin;
+    const knowledgeBase = await getKnowledgeBase(origin);
     const response = await routeHybrid({
       question,
       language,
