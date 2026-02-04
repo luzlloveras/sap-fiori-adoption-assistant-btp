@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { loadKnowledgeBase, routeHybrid } from "@fiori-access-ai-assistant/core";
+import {
+  buildActionsFromPlaybook,
+  extractRequestedSteps,
+  loadKnowledgeBase,
+  routeHybrid
+} from "@fiori-access-ai-assistant/core";
 import { MockProvider } from "@fiori-access-ai-assistant/core";
 
 async function createTempKnowledgeBase(
@@ -18,6 +23,37 @@ async function createTempKnowledgeBase(
 }
 
 describe("hybrid router", () => {
+  const basePlaybook = {
+    summary: { es: "Resumen", en: "Summary" },
+    starterActions: {
+      es: [
+        "Accion 1",
+        "Accion 2",
+        "Accion 3",
+        "Accion 4",
+        "Accion 5",
+        "Accion 6",
+        "Accion 7",
+        "Accion 8",
+        "Accion 9",
+        "Accion 10"
+      ],
+      en: [
+        "Action 1",
+        "Action 2",
+        "Action 3",
+        "Action 4",
+        "Action 5",
+        "Action 6",
+        "Action 7",
+        "Action 8",
+        "Action 9",
+        "Action 10"
+      ]
+    },
+    clarifyQuestions: { es: [], en: [] },
+    escalate: { es: "Escalar", en: "Escalate" }
+  } as const;
   it("returns rules-only response for common missing apps intent", async () => {
     const kbDir = await createTempKnowledgeBase({
       "roles-catalogs-spaces.md":
@@ -211,5 +247,46 @@ describe("hybrid router", () => {
     expect(joined).toMatch(/base de conocimiento/i);
     expect(joined).toMatch(/tema|theme/);
     expect(joined).not.toMatch(/error interno/);
+  });
+
+  it("extracts requested steps in ES/EN", () => {
+    expect(extractRequestedSteps("dame 7 pasos")).toBe(7);
+    expect(extractRequestedSteps("give me 6 steps")).toBe(6);
+    expect(extractRequestedSteps("listar checks")).toBeNull();
+  });
+
+  it("honors requested steps and clamps to max", () => {
+    const originalMax = process.env.PLAYBOOK_MAX_STEPS;
+    process.env.PLAYBOOK_MAX_STEPS = "12";
+
+    const esActions = buildActionsFromPlaybook(
+      basePlaybook,
+      "es",
+      "dame 7 pasos"
+    );
+    expect(esActions).toHaveLength(7);
+
+    const enActions = buildActionsFromPlaybook(
+      basePlaybook,
+      "en",
+      "give me 6 steps"
+    );
+    expect(enActions).toHaveLength(6);
+
+    const noNumber = buildActionsFromPlaybook(basePlaybook, "es", "hola");
+    expect(noNumber).toHaveLength(10);
+
+    const clamped = buildActionsFromPlaybook(
+      basePlaybook,
+      "es",
+      "dame 50 pasos"
+    );
+    expect(clamped).toHaveLength(12);
+
+    if (originalMax === undefined) {
+      delete process.env.PLAYBOOK_MAX_STEPS;
+    } else {
+      process.env.PLAYBOOK_MAX_STEPS = originalMax;
+    }
   });
 });

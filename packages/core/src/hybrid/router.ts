@@ -858,7 +858,7 @@ function buildRulesOnlyResponse(
 ): HybridResponse {
   const intent = classification.intent;
   const playbook = getPlaybookForIntent(intent);
-  const actions = buildActionList(playbook, language);
+  const actions = buildActionList(playbook, language, question);
   const questions = shouldAskForContext(question, classification.intent)
     ? toStringArray(pickByLanguage(playbook?.clarifyQuestions, language)).slice(0, 2)
     : [];
@@ -942,7 +942,7 @@ function buildClarifyResponse(
 ): HybridResponse {
   try {
     const playbook = getPlaybookForIntent(classification.intent);
-    const actions = buildActionList(playbook, language);
+    const actions = buildActionList(playbook, language, question);
     const questionsRaw = pickByLanguage(playbook?.clarifyQuestions, language);
     const questions = toStringArray(questionsRaw).slice(0, 2);
     const citations = buildRulesCitations(
@@ -1018,7 +1018,7 @@ function buildKbMissingClarify(
   const intentQuestions = toStringArray(
     pickByLanguage(playbook?.clarifyQuestions, language)
   ).slice(0, 2);
-  const actions = buildActionList(playbook, language);
+  const actions = buildActionList(playbook, language, question);
   const summary = pickSummary(playbook, language);
   return {
     intent: "clarify",
@@ -1118,9 +1118,13 @@ function getPlaybookForIntent(intent: Intent): IntentPlaybook {
   return INTENT_PLAYBOOK[intent] ?? GENERAL_PLAYBOOK;
 }
 
-function buildActionList(playbook: IntentPlaybook, language: Language): string[] {
-  const actions = buildActionsFromPlaybook(playbook, language);
-  return uniqueStrings(actions).slice(0, 6);
+function buildActionList(
+  playbook: IntentPlaybook,
+  language: Language,
+  question: string
+): string[] {
+  const actions = buildActionsFromPlaybook(playbook, language, question);
+  return uniqueStrings(actions);
 }
 
 function pickSummary(playbook: IntentPlaybook, language: Language): string {
@@ -1306,18 +1310,48 @@ function getPlaybook(intent: Intent): IntentPlaybook {
   return INTENT_PLAYBOOK[intent] ?? GENERAL_PLAYBOOK;
 }
 
-function buildActionsFromPlaybook(
+export function buildActionsFromPlaybook(
   playbook: IntentPlaybook,
-  language: Language
+  language: Language,
+  question?: string
 ): string[] {
   const actionsRaw = pickByLanguage(playbook?.starterActions, language);
-  const actions = toStringArray(actionsRaw);
-  if (actions.length >= 3) {
-    return actions.slice(0, 5);
-  }
+  const actions = uniqueStrings(toStringArray(actionsRaw));
   const fallbackRaw = pickByLanguage(GENERAL_PLAYBOOK.starterActions, language);
-  const fallback = toStringArray(fallbackRaw);
-  return fallback.slice(0, 5);
+  const fallback = uniqueStrings(toStringArray(fallbackRaw));
+  const baseList = actions.length >= 3 ? actions : fallback;
+  // Safety cap to prevent overly long answers even without explicit request.
+  const maxStepsRaw = Number.parseInt(
+    process.env.PLAYBOOK_MAX_STEPS ?? "12",
+    10
+  );
+  const maxSteps = Number.isFinite(maxStepsRaw) && maxStepsRaw > 0
+    ? maxStepsRaw
+    : 12;
+  const requested = question ? extractRequestedSteps(question) : null;
+  const limit = requested
+    ? Math.min(requested, maxSteps)
+    : Math.min(baseList.length, maxSteps);
+  const result = baseList.slice(0, limit);
+  const clamped = requested !== null && requested > maxSteps;
+  console.log(
+    "[trace]",
+    JSON.stringify({
+      requestedSteps: requested,
+      returnedSteps: result.length,
+      maxStepsClamp: clamped
+    })
+  );
+  return result;
+}
+
+export function extractRequestedSteps(question: string): number | null {
+  const match = question.match(
+    /\b(\d{1,2})\s*(pasos?|checks?|verificaciones?|chequeos?|steps?)\b/i
+  );
+  if (!match) return null;
+  const count = Number(match[1]);
+  return Number.isFinite(count) && count > 0 ? count : null;
 }
 
 function shouldAskForContext(question: string, intent: Intent): boolean {

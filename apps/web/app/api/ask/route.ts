@@ -68,6 +68,7 @@ export async function POST(request: Request) {
 
   const question =
     typeof body?.question === "string" ? body.question.trim() : "";
+  const requestedSteps = extractRequestedSteps(question);
   const language: Language = body?.language === "en" ? "en" : "es";
 
   if (!question) {
@@ -101,6 +102,10 @@ export async function POST(request: Request) {
         startMs: Date.now()
       }
     } as Parameters<typeof routeHybrid>[0]);
+    // console.log("[debug]", {
+    //   requestedSteps,
+    //   recommendedActionsLen: response.recommended_actions?.length ?? 0
+    // });
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     const body: Record<string, unknown> = {
@@ -121,4 +126,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(body, { status: 500 });
   }
+}
+
+function extractRequestedSteps(text: string): number | null {
+  const match = text.match(/\b(\d{1,2})\s*(pasos?|steps?)\b/i);
+  if (!match) return null;
+  const count = Number(match[1]);
+  return Number.isFinite(count) && count > 0 ? count : null;
 }
