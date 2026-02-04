@@ -40,11 +40,20 @@ async function main() {
       res.setHeader("Vary", "Origin");
     }
 
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    // Métodos permitidos
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+
+    // Headers permitidos (sumo Accept por compat)
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization"
+      "Content-Type, Authorization, Accept"
     );
+
+    // Cache del preflight (reduce spam de OPTIONS)
+    res.setHeader("Access-Control-Max-Age", "86400"); // 24h
+
+    // ⚠️ Solo si usás cookies/sesión desde browser:
+    // res.setHeader("Access-Control-Allow-Credentials", "true");
 
     // 🔑 responder preflight
     if (req.method === "OPTIONS") {
