@@ -14,6 +14,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@fiori-access-ai-assistant/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       cors:
         specifier: ^2.8.6
         version: 2.8.6
@@ -51,6 +54,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@fiori-access-ai-assistant/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       next:
         specifier: ^14.2.5
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -76,6 +82,15 @@ importers:
       eslint-config-next:
         specifier: ^14.2.5
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
+  packages/core:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.10
+        version: 20.19.30
       typescript:
         specifier: ^5.5.4
         version: 5.9.3

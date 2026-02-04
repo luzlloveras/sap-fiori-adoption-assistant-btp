@@ -10,11 +10,11 @@ When users cannot see apps in the SAP Fiori Launchpad, teams typically juggle ro
 The API loads Markdown knowledge at startup, retrieves the most relevant snippets with a simple BM25‑style score, and generates a structured response. The web UI provides a single‑page chat‑like experience and supports English and Spanish output.
 
 ## Architecture
-UI (`apps/web`) calls the Next.js proxy `/api/ask`, which forwards to the API (`apps/api` `/ask`). The API uses a hybrid router that chooses between RULES_ONLY, RAG_LLM, or CLARIFY. Retrieval is BM25‑like over Markdown knowledge base content, with grounding guardrails and citations in the response.
+UI (`apps/web`) calls the Next.js API route `/api/ask`, which runs the hybrid router directly inside Vercel. Retrieval is BM25‑like over the Markdown knowledge base, with grounding guardrails and citations in the response.
 
 ASCII diagram:
 ```
-[User] -> [apps/web UI] -> [/api/ask proxy] -> [/ask API]
+[User] -> [apps/web UI] -> [/api/ask]
                          -> [Hybrid Router] -> (RULES_ONLY | RAG_LLM | CLARIFY)
                          -> [KB Retrieval] -> [LLM Provider] -> [JSON Response + Citations]
 ```
@@ -43,40 +43,30 @@ The UI and responses support English and Spanish. SAP technical terms remain in 
 ## Run locally
 ```bash
 pnpm install
-pnpm -C apps/api dev
 pnpm -C apps/web dev
 ```
 
-The web app runs on `http://localhost:3000` and the API runs on `http://localhost:8080`.
+The web app (UI + API route) runs on `http://localhost:3000`.
 
-Optional OpenAI configuration in `apps/api/.env`:
+Quick API check:
+```bash
+curl -s http://localhost:3000/api/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"No veo la app en el Launchpad","language":"es"}' | jq .
+```
+
+Optional OpenAI configuration (local or Vercel):
 ```bash
 OPENAI_API_KEY=your_key
 OPENAI_MODEL=gpt-4o-mini
 ```
-
-## Deploy to SAP BTP Cloud Foundry
+Knowledge base path override (optional):
 ```bash
-cf login -a https://api.cf.<region>.hana.ondemand.com
-cf target -o <org> -s <space>
+KNOWLEDGE_BASE_PATH=/absolute/path/to/knowledge-base
 ```
 
-Deploy API:
-```bash
-cd apps/api
-cf push
-cf app fiori-assistant-api
-```
-
-Copy the route from `cf app` into `apps/web/manifest.yml` as `API_URL`.
-
-Deploy web:
-```bash
-cd ../web
-cf push
-```
-
-Note: Your org/space must have quota assigned. If quota is 0 MB, deployment will fail.
+The default knowledge base lives in `packages/core/knowledge-base`.
+Legacy Cloud Foundry artifacts are kept under `legacy/cf/`.
 
 ## Manual validation checklist
 - Switch language EN / ES in the UI.

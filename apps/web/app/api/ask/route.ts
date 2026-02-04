@@ -1,14 +1,38 @@
 import { NextResponse } from "next/server";
+import {
+  createProvider,
+  getDefaultKnowledgeBasePath,
+  loadKnowledgeBase,
+  routeHybrid,
+  type KnowledgeBase,
+  type Language
+} from "@fiori-access-ai-assistant/core";
+
+export const runtime = "nodejs";
 
 type AskRequest = {
   question?: string;
   language?: "es" | "en" | string;
 };
 
-export async function POST(request: Request) {
-  // Uses API_URL if provided; falls back to local dev API on 8080.
-  const apiBaseUrl = process.env.API_URL?.trim() || "http://localhost:8080";
+let cachedKnowledgeBase: KnowledgeBase | null = null;
+let knowledgeBasePromise: Promise<KnowledgeBase> | null = null;
+const provider = createProvider();
 
+async function getKnowledgeBase(): Promise<KnowledgeBase> {
+  if (cachedKnowledgeBase) return cachedKnowledgeBase;
+  if (!knowledgeBasePromise) {
+    const kbPath =
+      process.env.KNOWLEDGE_BASE_PATH ?? getDefaultKnowledgeBasePath();
+    knowledgeBasePromise = loadKnowledgeBase(kbPath).then((kb) => {
+      cachedKnowledgeBase = kb;
+      return kb;
+    });
+  }
+  return knowledgeBasePromise;
+}
+
+export async function POST(request: Request) {
   let body: AskRequest | undefined;
   try {
     body = (await request.json()) as AskRequest;
@@ -16,34 +40,59 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "Invalid JSON body",
-        details: error instanceof Error ? error.message : String(error),
+        details: error instanceof Error ? error.message : String(error)
       },
       { status: 400 }
     );
   }
 
-  const targetUrl = `${apiBaseUrl.replace(/\/$/, "")}/ask`;
+  const question =
+    typeof body?.question === "string" ? body.question.trim() : "";
+  const language: Language = body?.language === "en" ? "en" : "es";
 
-  try {
-    const response = await fetch(targetUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question: body?.question,
-        language: body?.language,
-      }),
-      cache: "no-store",
-    });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
-  } catch (error) {
+  if (!question) {
     return NextResponse.json(
       {
-        error: "Failed to reach backend",
-        details: error instanceof Error ? error.message : String(error),
+        intent: "clarify",
+        confidence: 0.1,
+        missing_info_questions: [
+          "Falta 'question' en el body.",
+          "Incluí el problema y el contexto."
+        ],
+        recommended_actions: [],
+        citations: [],
+        escalation_summary: "Solicitud inválida: falta question."
       },
-      { status: 502 }
+      { status: 400 }
     );
+  }
+
+  try {
+    const knowledgeBase = await getKnowledgeBase();
+    const response = await routeHybrid({
+      question,
+      language,
+      knowledgeBase,
+      provider
+    });
+    return NextResponse.json(response, { status: 200 });
+  } catch (error) {
+    const body: Record<string, unknown> = {
+      intent: "clarify",
+      confidence: 0.1,
+      missing_info_questions: [
+        "Error interno procesando la consulta.",
+        "Intentá nuevamente con más detalles."
+      ],
+      recommended_actions: [],
+      citations: [],
+      escalation_summary: "Error interno en /ask."
+    };
+
+    if (process.env.NODE_ENV !== "production") {
+      body.details = error instanceof Error ? error.stack : String(error);
+    }
+
+    return NextResponse.json(body, { status: 500 });
   }
 }

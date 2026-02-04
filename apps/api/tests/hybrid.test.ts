@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { loadKnowledgeBase } from "../src/rag/index.js";
-import { routeHybrid } from "../src/hybrid/router.js";
-import { MockProvider } from "../src/providers/mock.js";
+import { loadKnowledgeBase, routeHybrid } from "@fiori-access-ai-assistant/core";
+import { MockProvider } from "@fiori-access-ai-assistant/core";
 
 async function createTempKnowledgeBase(
   files: Record<string, string>

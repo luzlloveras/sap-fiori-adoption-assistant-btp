@@ -1,10 +1,11 @@
 import express, { type Request, type Response } from "express";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { loadKnowledgeBase, type Language } from "./rag/index.js";
-import { createProvider } from "./providers/index.js";
-import { routeHybrid } from "./hybrid/router.js";
+import {
+  createProvider,
+  getDefaultKnowledgeBasePath,
+  loadKnowledgeBase,
+  routeHybrid,
+  type Language
+} from "@fiori-access-ai-assistant/core";
 
 async function main() {
   // logs para evitar “crash silencioso”
@@ -18,63 +19,14 @@ async function main() {
   const app = express();
 
   // ======================================================
-  // 🔥 CORS HARD FIX — responde SIEMPRE el preflight
-  // ======================================================
-  app.use((req, res, next) => {
-    const origin = req.headers.origin as string | undefined;
-
-    const allowList = [
-      "https://sap-fiori-adoption-assistant.vercel.app",
-      "http://localhost:3000",
-    ];
-
-    const isVercelPreview =
-      origin && /^https:\/\/.*\.vercel\.app$/.test(origin);
-
-    const isWorkZone =
-      origin &&
-      /^https:\/\/.*\.launchpad\.cfapps\..*\.hana\.ondemand\.com$/.test(origin);
-
-    if (origin && (allowList.includes(origin) || isVercelPreview || isWorkZone)) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
-    }
-
-    // Métodos permitidos
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
-
-    // Headers permitidos (sumo Accept por compat)
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, Accept"
-    );
-
-    // Cache del preflight (reduce spam de OPTIONS)
-    res.setHeader("Access-Control-Max-Age", "86400"); // 24h
-
-    // ⚠️ Solo si usás cookies/sesión desde browser:
-    // res.setHeader("Access-Control-Allow-Credentials", "true");
-
-    // 🔑 responder preflight
-    if (req.method === "OPTIONS") {
-      return res.status(204).send();
-    }
-
-    next();
-  });
-
-  // ======================================================
-  // JSON (DESPUÉS de CORS)
+  // JSON
   // ======================================================
   app.use(express.json({ limit: "1mb" }));
 
   // ======================================================
   // Knowledge Base
   // ======================================================
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const defaultKbPath = path.join(__dirname, "../knowledge-base");
-  const kbPath = process.env.KNOWLEDGE_BASE_PATH ?? defaultKbPath;
+  const kbPath = process.env.KNOWLEDGE_BASE_PATH ?? getDefaultKnowledgeBasePath();
 
   console.log(`[KB] path=${kbPath}`);
 

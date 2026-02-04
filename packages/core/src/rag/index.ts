@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type Chunk = {
   id: string;
@@ -35,7 +36,7 @@ export async function loadKnowledgeBase(kbPath: string): Promise<KnowledgeBase> 
   try {
     files = await fs.readdir(kbPath);
   } catch {
-    // KB no existe en CF o no está montada
+    // KB no existe o no está accesible
     return {
       chunks: [],
       docCount: 0,
@@ -76,6 +77,12 @@ export async function loadKnowledgeBase(kbPath: string): Promise<KnowledgeBase> 
     docFrequencies,
     mdFileCount: markdownFiles.length
   };
+}
+
+export function getDefaultKnowledgeBasePath(): string {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  return path.join(__dirname, "../../knowledge-base");
 }
 
 export function retrieveChunks(

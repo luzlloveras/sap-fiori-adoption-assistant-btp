@@ -2,6 +2,8 @@ import { MockProvider } from "./mock.js";
 import { OpenAIProvider } from "./openai.js";
 import type { LLMProvider } from "./types.js";
 
+export { MockProvider, OpenAIProvider };
+
 export function createProvider(): LLMProvider {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (apiKey) {

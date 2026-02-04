@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { loadKnowledgeBase, retrieveChunks } from "../src/rag/index.js";
+import { loadKnowledgeBase, retrieveChunks } from "@fiori-access-ai-assistant/core";
 
 async function createTempKnowledgeBase(
   files: Record<string, string>

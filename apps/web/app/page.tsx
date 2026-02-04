@@ -1,6 +1,5 @@
 "use client";
 
-import { API_BASE_URL } from "../lib/api";
 import { useState } from "react";
 
 
@@ -32,7 +31,7 @@ export default function Page() {
     setLoading(true);
     setResponse(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/ask`, {
+      const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, language }),
