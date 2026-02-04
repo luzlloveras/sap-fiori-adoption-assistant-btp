@@ -3,14 +3,15 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "types": ["node"],
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "strict": true,
     "strictNullChecks": true,
     "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true

@@ -1,4 +1,4 @@
-import type { Language } from "../rag/index.js";
+import type { Language } from "../rag/index";
 
 export type Intent =
   | "apps_not_visible"

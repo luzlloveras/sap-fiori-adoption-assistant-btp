@@ -1,7 +1,7 @@
-import type { KnowledgeBase, Language, ScoredChunk } from "../rag/index.js";
-import { retrieveChunks } from "../rag/index.js";
-import type { LLMProvider } from "../providers/types.js";
-import type { Citation, HybridResponse, Intent, RoutePath } from "./types.js";
+import type { KnowledgeBase, Language, ScoredChunk } from "../rag/index";
+import { retrieveChunks } from "../rag/index";
+import type { LLMProvider } from "../providers/types";
+import type { Citation, HybridResponse, Intent, RoutePath } from "./types";
 
 type LlmHybridPayload = {
   recommended_actions: string[];

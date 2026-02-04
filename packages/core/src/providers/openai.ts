@@ -1,4 +1,4 @@
-import type { LLMProvider } from "./types.js";
+import type { LLMProvider } from "./types";
 
 type OpenAIChatResponse = {
   choices?: { message?: { content?: string } }[];

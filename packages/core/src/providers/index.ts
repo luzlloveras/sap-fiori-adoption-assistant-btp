@@ -1,6 +1,6 @@
-import { MockProvider } from "./mock.js";
-import { OpenAIProvider } from "./openai.js";
-import type { LLMProvider } from "./types.js";
+import { MockProvider } from "./mock";
+import { OpenAIProvider } from "./openai";
+import type { LLMProvider } from "./types";
 
 export { MockProvider, OpenAIProvider };
 
