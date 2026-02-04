@@ -33,6 +33,15 @@ async function getKnowledgeBase(): Promise<KnowledgeBase> {
 }
 
 export async function POST(request: Request) {
+  console.log("[env]", {
+    LLM_PROVIDER: process.env.LLM_PROVIDER ?? null,
+    AICORE_BASE_URL: Boolean(process.env.AICORE_BASE_URL),
+    AICORE_AUTH_URL: Boolean(process.env.AICORE_AUTH_URL),
+    AICORE_CLIENT_ID: Boolean(process.env.AICORE_CLIENT_ID),
+    AICORE_CLIENT_SECRET: Boolean(process.env.AICORE_CLIENT_SECRET),
+    AICORE_RESOURCE_GROUP: Boolean(process.env.AICORE_RESOURCE_GROUP)
+  });
+
   let body: AskRequest | undefined;
   try {
     body = (await request.json()) as AskRequest;
