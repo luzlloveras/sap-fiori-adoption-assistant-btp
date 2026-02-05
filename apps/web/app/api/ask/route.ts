@@ -18,28 +18,35 @@ type AskRequest = {
 let cachedKnowledgeBase: KnowledgeBase | null = null;
 let cachedKbPath: string | null = null;
 let knowledgeBasePromise: Promise<KnowledgeBase> | null = null;
+
 const provider = createProvider();
 
 async function getKnowledgeBase(origin: string): Promise<KnowledgeBase> {
-  const basePath = process.env.KNOWLEDGE_BASE_PATH;
-  const kbPath = basePath
-    ? basePath.startsWith("http")
-      ? basePath
-      : basePath.startsWith("/")
-        ? `${origin}${basePath}`
-        : basePath
-    : getDefaultKnowledgeBasePath();
+  // IMPORTANT: in Vercel, prefer loading KB via URL (served from /public/knowledge-base)
+  // This makes KB loading deterministic in runtime.
+  const kbEnv = process.env.KNOWLEDGE_BASE_PATH ?? "/knowledge-base";
+  const kbPath = kbEnv.startsWith("/") ? new URL(kbEnv, origin).toString() : kbEnv;
+
   if (cachedKnowledgeBase && cachedKbPath === kbPath) return cachedKnowledgeBase;
+
   if (cachedKbPath !== kbPath) {
     knowledgeBasePromise = null;
   }
+
   if (!knowledgeBasePromise) {
     knowledgeBasePromise = loadKnowledgeBase(kbPath).then((kb) => {
       cachedKnowledgeBase = kb;
       cachedKbPath = kbPath;
+
+      // log only SAFE metadata (no prompt, no user content)
+      const chunks = Array.isArray(kb?.chunks) ? kb.chunks.length : 0;
+      const mdFileCount = kb?.mdFileCount ?? 0;
+      console.log(`[KB] path=${kbPath} mdFileCount=${mdFileCount} chunks=${chunks}`);
+
       return kb;
     });
   }
+
   return knowledgeBasePromise;
 }
 
@@ -50,7 +57,8 @@ export async function POST(request: Request) {
     AICORE_AUTH_URL: Boolean(process.env.AICORE_AUTH_URL),
     AICORE_CLIENT_ID: Boolean(process.env.AICORE_CLIENT_ID),
     AICORE_CLIENT_SECRET: Boolean(process.env.AICORE_CLIENT_SECRET),
-    AICORE_RESOURCE_GROUP: Boolean(process.env.AICORE_RESOURCE_GROUP)
+    AICORE_RESOURCE_GROUP: Boolean(process.env.AICORE_RESOURCE_GROUP),
+    KNOWLEDGE_BASE_PATH: Boolean(process.env.KNOWLEDGE_BASE_PATH)
   });
 
   let body: AskRequest | undefined;
@@ -91,6 +99,7 @@ export async function POST(request: Request) {
   try {
     const origin = new URL(request.url).origin;
     const knowledgeBase = await getKnowledgeBase(origin);
+
     const response = await routeHybrid({
       question,
       language,
@@ -102,13 +111,17 @@ export async function POST(request: Request) {
         startMs: Date.now()
       }
     } as Parameters<typeof routeHybrid>[0]);
+
+    // Optional safe debug (metadata only)
     // console.log("[debug]", {
     //   requestedSteps,
-    //   recommendedActionsLen: response.recommended_actions?.length ?? 0
+    //   recommendedActionsLen: response.recommended_actions?.length ?? 0,
+    //   kbChunks: knowledgeBase?.chunks?.length ?? 0
     // });
+
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
-    const body: Record<string, unknown> = {
+    const res: Record<string, unknown> = {
       intent: "clarify",
       confidence: 0.1,
       missing_info_questions: [
@@ -121,10 +134,10 @@ export async function POST(request: Request) {
     };
 
     if (process.env.NODE_ENV !== "production") {
-      body.details = error instanceof Error ? error.stack : String(error);
+      res.details = error instanceof Error ? error.stack : String(error);
     }
 
-    return NextResponse.json(body, { status: 500 });
+    return NextResponse.json(res, { status: 500 });
   }
 }
 
