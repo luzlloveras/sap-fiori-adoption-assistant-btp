@@ -694,6 +694,8 @@ export function classifyIntent(question: string): {
 }
 
 export function decideRoute(intent: Intent, confidence: number): RoutePath {
+  console.log("INTENT:", intent, "CONF:", confidence);
+
   if (intent === "clarify" || confidence <= 0.35) {
     return "CLARIFY";
   }
