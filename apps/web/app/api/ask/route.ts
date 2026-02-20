@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import {
   createProvider,
-  getDefaultKnowledgeBasePath,
   loadKnowledgeBase,
+  resolveKnowledgeBasePath,
   routeHybrid,
   type KnowledgeBase,
   type Language
@@ -16,32 +16,35 @@ type AskRequest = {
 };
 
 let cachedKnowledgeBase: KnowledgeBase | null = null;
-let cachedKbPath: string | null = null;
+let cachedKnowledgeBasePath: string | null = null;
 let knowledgeBasePromise: Promise<KnowledgeBase> | null = null;
 
 const provider = createProvider();
 
 async function getKnowledgeBase(origin: string): Promise<KnowledgeBase> {
-  // IMPORTANT: in Vercel, prefer loading KB via URL (served from /public/knowledge-base)
-  // This makes KB loading deterministic in runtime.
-  const kbEnv = process.env.KNOWLEDGE_BASE_PATH ?? "/knowledge-base";
-  const kbPath = kbEnv.startsWith("/") ? new URL(kbEnv, origin).toString() : kbEnv;
+  const knowledgeBasePath = resolveKnowledgeBasePath(origin);
 
-  if (cachedKnowledgeBase && cachedKbPath === kbPath) return cachedKnowledgeBase;
+  // Cache por ruta resuelta para evitar recargar la KB
+  // mientras la configuración de entorno no cambie.
+  if (cachedKnowledgeBase && cachedKnowledgeBasePath === knowledgeBasePath) {
+    return cachedKnowledgeBase;
+  }
 
-  if (cachedKbPath !== kbPath) {
+  if (cachedKnowledgeBasePath !== knowledgeBasePath) {
     knowledgeBasePromise = null;
   }
 
   if (!knowledgeBasePromise) {
-    knowledgeBasePromise = loadKnowledgeBase(kbPath).then((kb) => {
+    knowledgeBasePromise = loadKnowledgeBase(knowledgeBasePath).then((kb) => {
       cachedKnowledgeBase = kb;
-      cachedKbPath = kbPath;
+      cachedKnowledgeBasePath = knowledgeBasePath;
 
-      // log only SAFE metadata (no prompt, no user content)
+      // Logueamos solo metadatos seguros (sin pregunta ni contenido sensible)
       const chunks = Array.isArray(kb?.chunks) ? kb.chunks.length : 0;
       const mdFileCount = kb?.mdFileCount ?? 0;
-      console.log(`[KB] path=${kbPath} mdFileCount=${mdFileCount} chunks=${chunks}`);
+      console.log(
+        `[KB] path=${knowledgeBasePath} mdFileCount=${mdFileCount} chunks=${chunks}`
+      );
 
       return kb;
     });
@@ -76,7 +79,6 @@ export async function POST(request: Request) {
 
   const question =
     typeof body?.question === "string" ? body.question.trim() : "";
-  const requestedSteps = extractRequestedSteps(question);
   const language: Language = body?.language === "en" ? "en" : "es";
 
   if (!question) {
@@ -112,13 +114,6 @@ export async function POST(request: Request) {
       }
     } as Parameters<typeof routeHybrid>[0]);
 
-    // Optional safe debug (metadata only)
-    // console.log("[debug]", {
-    //   requestedSteps,
-    //   recommendedActionsLen: response.recommended_actions?.length ?? 0,
-    //   kbChunks: knowledgeBase?.chunks?.length ?? 0
-    // });
-
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     const res: Record<string, unknown> = {
@@ -139,11 +134,4 @@ export async function POST(request: Request) {
 
     return NextResponse.json(res, { status: 500 });
   }
-}
-
-function extractRequestedSteps(text: string): number | null {
-  const match = text.match(/\b(\d{1,2})\s*(pasos?|steps?)\b/i);
-  if (!match) return null;
-  const count = Number(match[1]);
-  return Number.isFinite(count) && count > 0 ? count : null;
 }

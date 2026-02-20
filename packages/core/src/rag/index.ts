@@ -32,8 +32,8 @@ type RetrieveOptions = {
 const DEFAULT_TOP_K = 4;
 
 export async function loadKnowledgeBase(kbPath: string): Promise<KnowledgeBase> {
-  // Treat ONLY http(s) as URL. Any other string is treated as a filesystem path.
-  // (In Vercel runtime, the route.ts resolves /knowledge-base to an absolute URL)
+  // Usamos la misma función para disco local y URL HTTP
+  // para que el resto del código no tenga que saber de dónde viene la KB.
   if (kbPath.startsWith("http")) {
     return loadKnowledgeBaseFromUrl(kbPath);
   }
@@ -144,6 +144,7 @@ export function retrieveChunks(
   const queryTokens = tokenize(question);
   if (!queryTokens.length) return [];
 
+  // BM25 da una relevancia razonable sin dependencias externas ni vectores.
   const scored = knowledgeBase.chunks
     .map((chunk) => ({
       chunk,
@@ -185,6 +186,7 @@ export function buildPrompt(
       : "Further authorization analysis may be required.";
 
   return [
+    // Instrucciones de alto nivel para que el modelo no salga de la KB.
     "You are an internal assistant that answers using ONLY the provided sources.",
     "Do not leave any part of the response in English when responding in Spanish.",
     "Keep SAP technical terms in English even when responding in Spanish.",

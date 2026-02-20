@@ -1,85 +1,111 @@
-# Fiori Access AI Assistant
+## ¿Qué hace esta app?
 
-## Project overview
-Internal assistant that helps troubleshoot the scenario **"I can't see apps in SAP Fiori"** using a local knowledge base and a lightweight retrieval‑augmented generation (RAG) flow. The assistant answers only from provided sources and includes citations.
+Asistente interno para un único caso: **“no veo las apps en SAP Fiori Launchpad”**.  
+Lee una base de conocimiento local en Markdown.  
+Busca los párrafos más relevantes para tu pregunta.  
+Decide si puede responder solo con reglas, si necesita un modelo de lenguaje o si tiene que pedir más contexto.  
+Devuelve un JSON con: `intent`, `missing_info_questions`, `recommended_actions`, `citations`, `escalation_summary`.  
+No guarda estado entre preguntas.
 
-## Business problem
-When users cannot see apps in the SAP Fiori Launchpad, teams typically juggle roles, catalogs, spaces/pages, cache, and authorization checks across multiple stakeholders. A consistent troubleshooting workflow reduces time to resolution and avoids guesswork.
+## Problema que resuelve (Fiori troubleshooting)
 
-## Solution description
-The API loads Markdown knowledge at startup, retrieves the most relevant snippets with a simple BM25‑style score, and generates a structured response. The web UI provides a single‑page chat‑like experience and supports English and Spanish output.
+Cuando un usuario no ve tiles en el Launchpad hay muchas piezas: roles, catálogos, espacios/páginas, caché, autorizaciones y transportes.  
+Normalmente se pierde tiempo probando cosas al azar o preguntando a varios equipos.  
+Esta app estandariza el primer análisis: siempre hace las mismas preguntas y propone los mismos pasos básicos.  
+El objetivo es tener un “primer nivel” consistente y explicable.
 
-## Architecture
-UI (`apps/web`) calls the Next.js API route `/api/ask`, which runs the hybrid router directly inside Vercel. Retrieval is BM25‑like over the Markdown knowledge base, with grounding guardrails and citations in the response.
+## Qué NO hace la app
 
-ASCII diagram:
-```
-[User] -> [apps/web UI] -> [/api/ask]
-                         -> [Hybrid Router] -> (RULES_ONLY | RAG_LLM | CLARIFY)
-                         -> [KB Retrieval] -> [LLM Provider] -> [JSON Response + Citations]
-```
+- No crea ni modifica roles, catálogos, espacios ni transportes.  
+- No se conecta a sistemas SAP ni ejecuta transacciones.  
+- No ve tus logs reales: solo usa la knowledge base Markdown del proyecto.  
+- No resuelve cualquier problema de Fiori, solo los relacionados con visibilidad / acceso.  
+- No aprende sola: si la KB está mal, la respuesta también.
 
-## AI design principles
-- **Retrieval‑augmented generation**: answers are grounded in local Markdown content.
-- **Source‑only responses**: the assistant is instructed to use only provided sources.
-- **Explainability**: responses include steps, follow‑up questions, and citations.
-- **Guardrails**: if sources are insufficient, it says so and asks clarifying questions.
+## Flujo simple: pregunta → señales → decisión → respuesta
 
-## Language support (EN / ES)
-The UI and responses support English and Spanish. SAP technical terms remain in English: `business role`, `PFCG role`, `catalog`, `space`, `page`, `Launchpad`, `target mapping`.
+1. **Pregunta**: el usuario envía `POST /api/ask` (Next.js) o `POST /ask` (Express) con `question` y `language`.  
+2. **Señales**: el router analiza el texto y detecta intención (`intent`) y confianza (`confidence`).  
+3. **Decisión de ruta**:
+   - `RULES_ONLY`: usa solo reglas y checklists predefinidos.  
+   - `RAG_LLM`: busca en la KB y llama al modelo de lenguaje con esos textos.  
+   - `CLARIFY`: pide más contexto antes de seguir.  
+4. **Respuesta**: siempre un JSON con:
+   - `intent`: tipo de problema detectado.  
+   - `missing_info_questions`: preguntas para completar el contexto.  
+   - `recommended_actions`: pasos ordenados para revisar el caso.  
+   - `citations`: de dónde salió la información (archivos Markdown).  
+   - `escalation_summary`: texto listo para pegar en un ticket.
 
-## Expected business impact
-- Faster first‑line troubleshooting for access issues.
-- Reduced back‑and‑forth with basis/security teams.
-- Consistent, auditable guidance for common Fiori visibility problems.
+## Dónde hay IA y dónde NO
 
-## Example questions
-- "I assigned a business role but the user still sees no tiles. What should I check first?"
-- "Only one app is missing from a space. Which checks help narrow that down?"
-- "Could personalization hide tiles, and how do I reset it?"
-- "How do I confirm the catalog and target mappings are in the right client?"
-- "What information should I request from basis or security to troubleshoot access?"
+- **IA (LLM)**:
+  - Solo en la ruta `RAG_LLM`.  
+  - Se llama a un `provider` intercambiable (mock, OpenAI, GenAI Hub).  
+  - El modelo recibe un prompt con la pregunta y los `chunks` de KB como contexto.  
+  - El modelo debe devolver únicamente JSON con pasos, preguntas y resumen.
 
-## Run locally
+- **Lógica determinística (sin IA)**:
+  - Clasificación de intención (`classifyIntent`) a partir de reglas de texto.  
+  - Decisión de ruta (`decideRoute`) según intención y confianza.  
+  - Búsqueda en la KB (`retrieveChunks`) con un score tipo BM25.  
+  - Construcción de `recommended_actions`, `missing_info_questions` y `escalation_summary` cuando se usa `RULES_ONLY` o `CLARIFY`.  
+  - Estructura exacta del JSON de salida.
+
+## Glosario simple
+
+- **LLM**: modelo de lenguaje grande que genera texto a partir de texto.  
+- **prompt**: texto de instrucciones que le manda la app al modelo para guiar la respuesta.  
+- **RAG**: primero busca pedazos de texto relevantes y después se los pasa al modelo para que responda solo con eso.  
+- **chunk**: pedazo corto de texto de la KB, pensado para buscar más fácil.  
+- **retrieval**: parte que elige qué `chunks` son los más parecidos a la pregunta.  
+- **grounding**: obligar al modelo a usar solo lo que está en los `chunks`, sin inventar.  
+- **provider**: implementación concreta que llama al modelo (mock, OpenAI, GenAI Hub).  
+- **GenAI Hub**: servicio de SAP BTP para llamar modelos de lenguaje de forma gobernada.  
+- **AI Core**: servicio de SAP BTP para ejecutar cargas de IA (modelos, pipelines) de forma gestionada.  
+- **route (RULES_ONLY / RAG_LLM / CLARIFY)**: camino que sigue el router según la pregunta y la confianza.
+
+## Por qué este proyecto demuestra aprendizaje en IA empresarial
+
+- **Prompting**: los prompts están en código, son cortos y legibles, y muestran cómo guiar a un modelo para obtener solo JSON útil.  
+- **Grounding y RAG**: la respuesta se apoya en Markdown local, con búsqueda BM25 y citas explícitas.  
+- **Seguridad y PII**: la app nunca loguea el texto completo de la pregunta, solo metadatos (intención, ruta, número de chunks).  
+- **Decisión guiada**: el router híbrido combina reglas de negocio con IA, y siempre puede volver a `CLARIFY` cuando la señal es débil.  
+- **Intercambio de providers**: el contrato del `provider` es estable; se puede cambiar de mock a GenAI Hub sin tocar el flujo de negocio.  
+- **Enfoque en un caso de uso real**: no es un “chat genérico”, está centrado en troubleshooting de acceso Fiori, con lenguaje de consultoría.
+
+## Cómo correrla rápido
+
+Instalar dependencias:
+
 ```bash
 pnpm install
+```
+
+Levantar la app web (UI + `/api/ask` en Next.js):
+
+```bash
 pnpm -C apps/web dev
 ```
 
-The web app (UI + API route) runs on `http://localhost:3000`.
+Probar la API desde consola:
 
-Quick API check:
 ```bash
 curl -s http://localhost:3000/api/ask \
   -H "Content-Type: application/json" \
-  -d '{"question":"No veo la app en el Launchpad","language":"es"}' | jq .
+  -d '{"question":"No veo la app en el Launchpad","language":"es"}'
 ```
 
-Optional OpenAI configuration (local or Vercel):
+Variables opcionales:
+
 ```bash
-OPENAI_API_KEY=your_key
+# Provider OpenAI (si no se setea, se usa mock)
+OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4o-mini
+
+# Ruta de la knowledge base
+KNOWLEDGE_BASE_PATH=/ruta/absoluta/a/knowledge-base
 ```
-Knowledge base path override (optional):
-```bash
-KNOWLEDGE_BASE_PATH=/absolute/path/to/knowledge-base
-```
 
-The default knowledge base lives in `packages/core/knowledge-base`.
-Legacy Cloud Foundry artifacts are kept under `legacy/cf/`.
-
-## Manual validation checklist
-- Switch language EN / ES in the UI.
-- Spanish answers are fully localized.
-- SAP terms remain in English.
-- Steps and sources are present.
-- No hallucinations beyond the sources.
-
-## Demo (placeholder)
-`docs/demo.gif`
-
-## SAP BTP & Generative AI Hub blueprint
-In SAP landscapes, the LLM call would be routed through **SAP Generative AI Hub** for governed access and policy enforcement. Retrieval could be backed by **HANA Cloud** vector storage while keeping the same grounding and citation model.
-
-## Disclaimer
-All knowledge base content is simulated and generic. It does not include SAP confidential information.
+La KB por defecto está en `packages/core/knowledge-base`.  
+Artefactos CF heredados viven en `legacy/cf/` y no afectan al flujo principal.

@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from "express";
 import {
   createProvider,
-  getDefaultKnowledgeBasePath,
+  getNodeKnowledgeBasePath,
   loadKnowledgeBase,
   routeHybrid,
   type Language
@@ -26,11 +26,11 @@ async function main() {
   // ======================================================
   // Knowledge Base
   // ======================================================
-  const kbPath = process.env.KNOWLEDGE_BASE_PATH ?? getDefaultKnowledgeBasePath();
+  const knowledgeBasePath = getNodeKnowledgeBasePath();
 
-  console.log(`[KB] path=${kbPath}`);
+  console.log(`[KB] path=${knowledgeBasePath}`);
 
-  const knowledgeBase = await loadKnowledgeBase(kbPath);
+  const knowledgeBase = await loadKnowledgeBase(knowledgeBasePath);
 
   const chunkCount = Array.isArray(knowledgeBase?.chunks)
     ? knowledgeBase.chunks.length

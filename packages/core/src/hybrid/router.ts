@@ -1,5 +1,6 @@
 import type { KnowledgeBase, Language, ScoredChunk } from "../rag/index";
 import { retrieveChunks } from "../rag/index";
+import { getPlaybookMaxSteps } from "../config";
 import type { LLMProvider } from "../providers/types";
 import type { Citation, HybridResponse, Intent, RoutePath } from "./types";
 
@@ -546,6 +547,7 @@ export function classifyIntent(question: string): {
   intent: Intent;
   confidence: number;
 } {
+  // Clasificador 100% basado en reglas para que el routing sea explicable y estable.
   const normalized = normalize(question);
   const tokens = normalized.split(/\s+/).filter(Boolean);
   if (tokens.length < 3) {
@@ -743,6 +745,7 @@ export async function routeHybrid({
       ? knowledgeBase.chunks.length
       : 0;
     if (chunkCount === 0) {
+      // Sin KB cargada, nunca llamamos al LLM: solo devolvemos clarify guiado.
       console.log(
         "[ask]",
         JSON.stringify({
@@ -1320,14 +1323,7 @@ export function buildActionsFromPlaybook(
   const fallbackRaw = pickByLanguage(GENERAL_PLAYBOOK.starterActions, language);
   const fallback = uniqueStrings(toStringArray(fallbackRaw));
   const baseList = actions.length >= 3 ? actions : fallback;
-  // Safety cap to prevent overly long answers even without explicit request.
-  const maxStepsRaw = Number.parseInt(
-    process.env.PLAYBOOK_MAX_STEPS ?? "12",
-    10
-  );
-  const maxSteps = Number.isFinite(maxStepsRaw) && maxStepsRaw > 0
-    ? maxStepsRaw
-    : 12;
+  const maxSteps = getPlaybookMaxSteps();
   const requested = question ? extractRequestedSteps(question) : null;
   const limit = requested
     ? Math.min(requested, maxSteps)
