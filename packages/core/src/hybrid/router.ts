@@ -40,7 +40,7 @@ const RULE_INTENTS: Intent[] = [
   "authorization",
   "ui2_services_missing",
   "theme_issue_launchpad",
-  "odata_401_403",
+  //"odata_401_403",
   "transport_incomplete_fiori",
   "flp_blank_page_after_activation"
 ];
@@ -694,7 +694,6 @@ export function classifyIntent(question: string): {
 }
 
 export function decideRoute(intent: Intent, confidence: number): RoutePath {
-  console.log("INTENT:", intent, "CONF:", confidence);
 
   if (intent === "clarify" || confidence <= 0.35) {
     return "CLARIFY";
