@@ -697,7 +697,7 @@ export function decideRoute(intent: Intent, confidence: number): RoutePath {
   if (intent === "clarify" || confidence <= 0.35) {
     return "CLARIFY";
   }
-  if (RULE_INTENTS.includes(intent) && confidence >= 0.7) {
+  if (RULE_INTENTS.includes(intent) && confidence >= 0.9) {
     return "RULES_ONLY";
   }
   return "RAG_LLM";
@@ -774,65 +774,31 @@ export async function routeHybrid({
       })
     );
 
-    //modificacion para llamar a RAG
-    // if (isGlobal && isGlobalIntent(classification.intent)) {
-    //   const citations = buildRulesCitations(
-    //     knowledgeBase,
-    //     question,
-    //     classification.intent
-    //   );
-    //   if (citations.length > 0) {
-    //     const response = buildRulesOnlyResponse(
-    //       question,
-    //       language,
-    //       knowledgeBase,
-    //       classification
-    //     );
-    //     emitTrace("RULES_ONLY", response.intent, chunkCount);
-    //     return response;
-    //   }
-    //   const response = buildClarifyResponse(
-    //     question,
-    //     language,
-    //     knowledgeBase,
-    //     classification
-    //   );
-    //   emitTrace("CLARIFY", response.intent, chunkCount);
-    //   return response;
-    // }
+    
     if (isGlobal && isGlobalIntent(classification.intent)) {
-      // Si es global pero la confianza no es muy alta,
-      // dejamos que continúe el flujo normal para permitir RAG_LLM
-      if (classification.confidence < 0.85) {
-        // No retornamos acá.
-        // Dejamos que decidaRoute más abajo determine si usar RAG.
-      } else {
-        const citations = buildRulesCitations(
-          knowledgeBase,
-          question,
-          classification.intent
-        );
-    
-        if (citations.length > 0) {
-          const response = buildRulesOnlyResponse(
-            question,
-            language,
-            knowledgeBase,
-            classification
-          );
-          emitTrace("RULES_ONLY", response.intent, chunkCount);
-          return response;
-        }
-    
-        const response = buildClarifyResponse(
+      const citations = buildRulesCitations(
+        knowledgeBase,
+        question,
+        classification.intent
+      );
+      if (citations.length > 0) {
+        const response = buildRulesOnlyResponse(
           question,
           language,
           knowledgeBase,
           classification
         );
-        emitTrace("CLARIFY", response.intent, chunkCount);
+        emitTrace("RULES_ONLY", response.intent, chunkCount);
         return response;
       }
+      const response = buildClarifyResponse(
+        question,
+        language,
+        knowledgeBase,
+        classification
+      );
+      emitTrace("CLARIFY", response.intent, chunkCount);
+      return response;
     }
 
     if (route === "CLARIFY") {
